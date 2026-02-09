@@ -179,6 +179,28 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 .template-card h3{font-size:16px;font-weight:600;margin-bottom:4px}
 .template-card .meta{font-size:13px;color:var(--text-secondary)}
 
+/* Program Card */
+.program-card{background:var(--bg-surface);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:var(--radius);margin:8px 16px;overflow:hidden}
+.program-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 6px}
+.program-header h3{font-size:17px;font-weight:700}
+.program-meta{padding:0 16px 10px;font-size:13px;color:var(--text-secondary)}
+.program-day{display:flex;align-items:center;gap:10px;padding:10px 16px;border-top:1px solid var(--border);transition:background .15s}
+.program-day:active{background:var(--bg-surface-hover)}
+.program-day-num{font-size:11px;font-weight:700;color:var(--accent);background:var(--accent-dim);padding:3px 8px;border-radius:10px;white-space:nowrap}
+.program-day-label{flex:1;min-width:0;font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.program-day .meta{font-size:12px;color:var(--text-muted);white-space:nowrap}
+.program-day .btn{flex-shrink:0}
+.new-choice-dropdown{position:absolute;right:16px;top:calc(var(--header-height) - 4px);background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow);z-index:60;overflow:hidden;min-width:160px}
+.new-choice-dropdown button{display:flex;align-items:center;gap:8px;width:100%;padding:12px 16px;background:none;border:none;color:var(--text-primary);font-size:14px;font-weight:500;cursor:pointer;text-align:left}
+.new-choice-dropdown button:active{background:var(--bg-surface-hover)}
+.new-choice-dropdown button+button{border-top:1px solid var(--border)}
+.program-editor-day{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-sm);margin:6px 16px}
+.program-editor-day .day-info{flex:1;min-width:0}
+.program-editor-day .day-info input{background:transparent;border:none;color:var(--text-primary);font-size:15px;font-weight:500;padding:0;width:100%;outline:none}
+.program-editor-day .day-info input:focus{border-bottom:1px solid var(--accent)}
+.program-editor-day .day-meta{font-size:12px;color:var(--text-muted);margin-top:2px}
+.program-editor-day .day-actions{display:flex;gap:4px;flex-shrink:0}
+
 /* Toast */
 .toast{position:fixed;bottom:calc(var(--nav-height) + 16px);left:50%;transform:translateX(-50%);background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 24px;font-size:14px;z-index:400;animation:fadeIn .2s;box-shadow:var(--shadow)}
 
@@ -919,14 +941,14 @@ const SVGAnimations = {
 // --- PRE-MADE ROUTINE TEMPLATES ---
 const PREMADE_TEMPLATES = [
   // 3-Day Push/Pull/Legs
-  {id:'tpl-3day-push',name:'3-Day: Push (Chest/Shoulders/Triceps)',exercises:[
+  {id:'tpl-3day-push',name:'Push (Chest/Shoulders/Triceps)',programId:'prog-3day',programName:'3-Day Push/Pull/Legs',dayLabel:'Day 1 - Push',programOrder:0,exercises:[
     {exerciseId:'db-bench',exerciseName:'DB Bench Press',orderIndex:0,targetSets:3,targetReps:10,targetWeight:0,restSeconds:90},
     {exerciseId:'db-incline-press',exerciseName:'Incline DB Press',orderIndex:1,targetSets:3,targetReps:10,targetWeight:0,restSeconds:90},
     {exerciseId:'db-shoulder-press',exerciseName:'DB Shoulder Press',orderIndex:2,targetSets:3,targetReps:10,targetWeight:0,restSeconds:90},
     {exerciseId:'lateral-raise',exerciseName:'Lateral Raise',orderIndex:3,targetSets:3,targetReps:12,targetWeight:0,restSeconds:60},
     {exerciseId:'tricep-kickback',exerciseName:'Tricep Kickback',orderIndex:4,targetSets:3,targetReps:12,targetWeight:0,restSeconds:60},
   ]},
-  {id:'tpl-3day-pull',name:'3-Day: Pull (Back/Biceps/Traps)',exercises:[
+  {id:'tpl-3day-pull',name:'Pull (Back/Biceps/Traps)',programId:'prog-3day',programName:'3-Day Push/Pull/Legs',dayLabel:'Day 2 - Pull',programOrder:1,exercises:[
     {exerciseId:'db-row',exerciseName:'DB Row',orderIndex:0,targetSets:3,targetReps:10,targetWeight:0,restSeconds:90},
     {exerciseId:'ext-Bent_Over_Two-Dumbbell_Row',exerciseName:'Bent Over Two-Dumbbell Row',orderIndex:1,targetSets:3,targetReps:10,targetWeight:0,restSeconds:90},
     {exerciseId:'reverse-fly',exerciseName:'Reverse Fly',orderIndex:2,targetSets:3,targetReps:12,targetWeight:0,restSeconds:60},
@@ -934,7 +956,7 @@ const PREMADE_TEMPLATES = [
     {exerciseId:'hammer-curl',exerciseName:'Hammer Curl',orderIndex:4,targetSets:3,targetReps:10,targetWeight:0,restSeconds:60},
     {exerciseId:'db-shrug',exerciseName:'DB Shrug',orderIndex:5,targetSets:3,targetReps:12,targetWeight:0,restSeconds:60},
   ]},
-  {id:'tpl-3day-legs',name:'3-Day: Legs (Quads/Hams/Calves/Abs)',exercises:[
+  {id:'tpl-3day-legs',name:'Legs (Quads/Hams/Calves/Abs)',programId:'prog-3day',programName:'3-Day Push/Pull/Legs',dayLabel:'Day 3 - Legs',programOrder:2,exercises:[
     {exerciseId:'goblet-squat',exerciseName:'Goblet Squat',orderIndex:0,targetSets:3,targetReps:10,targetWeight:0,restSeconds:90},
     {exerciseId:'db-lunge',exerciseName:'DB Lunge',orderIndex:1,targetSets:3,targetReps:10,targetWeight:0,restSeconds:90},
     {exerciseId:'db-rdl',exerciseName:'DB Romanian Deadlift',orderIndex:2,targetSets:3,targetReps:10,targetWeight:0,restSeconds:90},
@@ -943,14 +965,14 @@ const PREMADE_TEMPLATES = [
     {exerciseId:'russian-twist',exerciseName:'Russian Twist',orderIndex:5,targetSets:3,targetReps:12,targetWeight:0,restSeconds:60},
   ]},
   // 4-Day Upper/Lower
-  {id:'tpl-4day-upper-a',name:'4-Day: Upper A (Chest Focus)',exercises:[
+  {id:'tpl-4day-upper-a',name:'Upper A (Chest Focus)',programId:'prog-4day',programName:'4-Day Upper/Lower',dayLabel:'Day 1 - Upper A',programOrder:0,exercises:[
     {exerciseId:'db-bench',exerciseName:'DB Bench Press',orderIndex:0,targetSets:3,targetReps:10,targetWeight:0,restSeconds:90},
     {exerciseId:'db-fly',exerciseName:'DB Fly',orderIndex:1,targetSets:3,targetReps:12,targetWeight:0,restSeconds:60},
     {exerciseId:'db-row',exerciseName:'DB Row',orderIndex:2,targetSets:3,targetReps:10,targetWeight:0,restSeconds:90},
     {exerciseId:'db-shoulder-press',exerciseName:'DB Shoulder Press',orderIndex:3,targetSets:3,targetReps:10,targetWeight:0,restSeconds:90},
     {exerciseId:'lateral-raise',exerciseName:'Lateral Raise',orderIndex:4,targetSets:3,targetReps:12,targetWeight:0,restSeconds:60},
   ]},
-  {id:'tpl-4day-lower-a',name:'4-Day: Lower A (Quad Focus)',exercises:[
+  {id:'tpl-4day-lower-a',name:'Lower A (Quad Focus)',programId:'prog-4day',programName:'4-Day Upper/Lower',dayLabel:'Day 2 - Lower A',programOrder:1,exercises:[
     {exerciseId:'goblet-squat',exerciseName:'Goblet Squat',orderIndex:0,targetSets:3,targetReps:10,targetWeight:0,restSeconds:90},
     {exerciseId:'db-lunge',exerciseName:'DB Lunge',orderIndex:1,targetSets:3,targetReps:10,targetWeight:0,restSeconds:90},
     {exerciseId:'ext-Dumbbell_Step_Ups',exerciseName:'Dumbbell Step Ups',orderIndex:2,targetSets:3,targetReps:10,targetWeight:0,restSeconds:60},
@@ -958,7 +980,7 @@ const PREMADE_TEMPLATES = [
     {exerciseId:'crunch',exerciseName:'Crunch',orderIndex:4,targetSets:3,targetReps:15,targetWeight:0,restSeconds:60},
     {exerciseId:'ext-Dumbbell_Side_Bend',exerciseName:'Dumbbell Side Bend',orderIndex:5,targetSets:3,targetReps:12,targetWeight:0,restSeconds:60},
   ]},
-  {id:'tpl-4day-upper-b',name:'4-Day: Upper B (Back/Arms Focus)',exercises:[
+  {id:'tpl-4day-upper-b',name:'Upper B (Back/Arms Focus)',programId:'prog-4day',programName:'4-Day Upper/Lower',dayLabel:'Day 3 - Upper B',programOrder:2,exercises:[
     {exerciseId:'ext-Bent_Over_Two-Dumbbell_Row',exerciseName:'Bent Over Two-Dumbbell Row',orderIndex:0,targetSets:3,targetReps:10,targetWeight:0,restSeconds:90},
     {exerciseId:'reverse-fly',exerciseName:'Reverse Fly',orderIndex:1,targetSets:3,targetReps:12,targetWeight:0,restSeconds:60},
     {exerciseId:'arnold-press',exerciseName:'Arnold Press',orderIndex:2,targetSets:3,targetReps:10,targetWeight:0,restSeconds:90},
@@ -966,7 +988,7 @@ const PREMADE_TEMPLATES = [
     {exerciseId:'tricep-kickback',exerciseName:'Tricep Kickback',orderIndex:4,targetSets:3,targetReps:12,targetWeight:0,restSeconds:60},
     {exerciseId:'db-shrug',exerciseName:'DB Shrug',orderIndex:5,targetSets:3,targetReps:12,targetWeight:0,restSeconds:60},
   ]},
-  {id:'tpl-4day-lower-b',name:'4-Day: Lower B (Hamstring/Glute Focus)',exercises:[
+  {id:'tpl-4day-lower-b',name:'Lower B (Hamstring/Glute Focus)',programId:'prog-4day',programName:'4-Day Upper/Lower',dayLabel:'Day 4 - Lower B',programOrder:3,exercises:[
     {exerciseId:'db-rdl',exerciseName:'DB Romanian Deadlift',orderIndex:0,targetSets:3,targetReps:10,targetWeight:0,restSeconds:90},
     {exerciseId:'ext-Plie_Dumbbell_Squat',exerciseName:'Plie Dumbbell Squat',orderIndex:1,targetSets:3,targetReps:12,targetWeight:0,restSeconds:90},
     {exerciseId:'ext-Dumbbell_Rear_Lunge',exerciseName:'Dumbbell Rear Lunge',orderIndex:2,targetSets:3,targetReps:10,targetWeight:0,restSeconds:90},
@@ -975,7 +997,7 @@ const PREMADE_TEMPLATES = [
     {exerciseId:'russian-twist',exerciseName:'Russian Twist',orderIndex:5,targetSets:3,targetReps:15,targetWeight:0,restSeconds:60},
   ]},
   // 5-Day Body Part Split
-  {id:'tpl-5day-chest-tri',name:'5-Day: Chest + Triceps',exercises:[
+  {id:'tpl-5day-chest-tri',name:'Chest + Triceps',programId:'prog-5day',programName:'5-Day Body Part Split',dayLabel:'Day 1 - Chest/Tri',programOrder:0,exercises:[
     {exerciseId:'db-bench',exerciseName:'DB Bench Press',orderIndex:0,targetSets:3,targetReps:10,targetWeight:0,restSeconds:90},
     {exerciseId:'db-incline-press',exerciseName:'Incline DB Press',orderIndex:1,targetSets:3,targetReps:10,targetWeight:0,restSeconds:90},
     {exerciseId:'db-fly',exerciseName:'DB Fly',orderIndex:2,targetSets:3,targetReps:12,targetWeight:0,restSeconds:60},
@@ -983,7 +1005,7 @@ const PREMADE_TEMPLATES = [
     {exerciseId:'ext-Dumbbell_One-Arm_Triceps_Extension',exerciseName:'Dumbbell One-Arm Triceps Extension',orderIndex:4,targetSets:3,targetReps:12,targetWeight:0,restSeconds:60},
     {exerciseId:'tricep-kickback',exerciseName:'Tricep Kickback',orderIndex:5,targetSets:3,targetReps:12,targetWeight:0,restSeconds:60},
   ]},
-  {id:'tpl-5day-back-bi',name:'5-Day: Back + Biceps',exercises:[
+  {id:'tpl-5day-back-bi',name:'Back + Biceps',programId:'prog-5day',programName:'5-Day Body Part Split',dayLabel:'Day 2 - Back/Bi',programOrder:1,exercises:[
     {exerciseId:'db-row',exerciseName:'DB Row',orderIndex:0,targetSets:3,targetReps:10,targetWeight:0,restSeconds:90},
     {exerciseId:'ext-Bent_Over_Two-Dumbbell_Row',exerciseName:'Bent Over Two-Dumbbell Row',orderIndex:1,targetSets:3,targetReps:10,targetWeight:0,restSeconds:90},
     {exerciseId:'ext-Dumbbell_Incline_Row',exerciseName:'Dumbbell Incline Row',orderIndex:2,targetSets:3,targetReps:10,targetWeight:0,restSeconds:60},
@@ -991,7 +1013,7 @@ const PREMADE_TEMPLATES = [
     {exerciseId:'hammer-curl',exerciseName:'Hammer Curl',orderIndex:4,targetSets:3,targetReps:10,targetWeight:0,restSeconds:60},
     {exerciseId:'ext-Incline_Hammer_Curls',exerciseName:'Incline Hammer Curls',orderIndex:5,targetSets:3,targetReps:10,targetWeight:0,restSeconds:60},
   ]},
-  {id:'tpl-5day-shoulders',name:'5-Day: Shoulders + Traps',exercises:[
+  {id:'tpl-5day-shoulders',name:'Shoulders + Traps',programId:'prog-5day',programName:'5-Day Body Part Split',dayLabel:'Day 3 - Shoulders',programOrder:2,exercises:[
     {exerciseId:'db-shoulder-press',exerciseName:'DB Shoulder Press',orderIndex:0,targetSets:3,targetReps:10,targetWeight:0,restSeconds:90},
     {exerciseId:'arnold-press',exerciseName:'Arnold Press',orderIndex:1,targetSets:3,targetReps:10,targetWeight:0,restSeconds:90},
     {exerciseId:'lateral-raise',exerciseName:'Lateral Raise',orderIndex:2,targetSets:3,targetReps:12,targetWeight:0,restSeconds:60},
@@ -999,14 +1021,14 @@ const PREMADE_TEMPLATES = [
     {exerciseId:'reverse-fly',exerciseName:'Reverse Fly',orderIndex:4,targetSets:3,targetReps:12,targetWeight:0,restSeconds:60},
     {exerciseId:'db-shrug',exerciseName:'DB Shrug',orderIndex:5,targetSets:3,targetReps:12,targetWeight:0,restSeconds:60},
   ]},
-  {id:'tpl-5day-legs',name:'5-Day: Legs',exercises:[
+  {id:'tpl-5day-legs',name:'Legs',programId:'prog-5day',programName:'5-Day Body Part Split',dayLabel:'Day 4 - Legs',programOrder:3,exercises:[
     {exerciseId:'goblet-squat',exerciseName:'Goblet Squat',orderIndex:0,targetSets:3,targetReps:10,targetWeight:0,restSeconds:90},
     {exerciseId:'db-lunge',exerciseName:'DB Lunge',orderIndex:1,targetSets:3,targetReps:10,targetWeight:0,restSeconds:90},
     {exerciseId:'db-rdl',exerciseName:'DB Romanian Deadlift',orderIndex:2,targetSets:3,targetReps:10,targetWeight:0,restSeconds:90},
     {exerciseId:'ext-Dumbbell_Step_Ups',exerciseName:'Dumbbell Step Ups',orderIndex:3,targetSets:3,targetReps:10,targetWeight:0,restSeconds:60},
     {exerciseId:'ext-Standing_Dumbbell_Calf_Raise',exerciseName:'Standing Dumbbell Calf Raise',orderIndex:4,targetSets:3,targetReps:15,targetWeight:0,restSeconds:60},
   ]},
-  {id:'tpl-5day-arms-abs',name:'5-Day: Arms + Abs',exercises:[
+  {id:'tpl-5day-arms-abs',name:'Arms + Abs',programId:'prog-5day',programName:'5-Day Body Part Split',dayLabel:'Day 5 - Arms/Abs',programOrder:4,exercises:[
     {exerciseId:'ext-Seated_Dumbbell_Curl',exerciseName:'Seated Dumbbell Curl',orderIndex:0,targetSets:3,targetReps:10,targetWeight:0,restSeconds:60},
     {exerciseId:'ext-Cross_Body_Hammer_Curl',exerciseName:'Cross Body Hammer Curl',orderIndex:1,targetSets:3,targetReps:12,targetWeight:0,restSeconds:60},
     {exerciseId:'ext-Seated_Triceps_Press',exerciseName:'Seated Triceps Press',orderIndex:2,targetSets:3,targetReps:10,targetWeight:0,restSeconds:60},
@@ -1029,6 +1051,17 @@ async function initDB(){
     const existing = await DB.get('templates',tpl.id);
     if(!existing){
       await DB.put('templates',{...tpl,updatedAt:Date.now()});
+    }
+  }
+  // Migration: add programId fields to existing pre-made templates that lack them
+  const programFieldMap = {};
+  for(const tpl of PREMADE_TEMPLATES){
+    if(tpl.programId) programFieldMap[tpl.id] = {programId:tpl.programId,programName:tpl.programName,dayLabel:tpl.dayLabel,programOrder:tpl.programOrder,name:tpl.name};
+  }
+  for(const [id,fields] of Object.entries(programFieldMap)){
+    const existing = await DB.get('templates',id);
+    if(existing && !existing.programId){
+      await DB.put('templates',{...existing,...fields,updatedAt:existing.updatedAt||Date.now()});
     }
   }
 }
@@ -1436,21 +1469,55 @@ async function startWorkoutFlow(){
 }
 
 function showTemplatePickerModal(templates){
+  // Group by program
+  const programs={};
+  const standalone=[];
+  for(const t of templates){
+    if(t.programId){
+      if(!programs[t.programId])programs[t.programId]={programName:t.programName||'Program',days:[]};
+      programs[t.programId].days.push(t);
+    }else{
+      standalone.push(t);
+    }
+  }
+  for(const p of Object.values(programs)){
+    p.days.sort((a,b)=>(a.programOrder||0)-(b.programOrder||0));
+  }
+  standalone.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+
+  const hasProg=Object.keys(programs).length>0;
+  const hasStandalone=standalone.length>0;
+
+  const programHtml=Object.entries(programs).map(([pid,p])=>`
+    <div style="margin:8px 0">
+      <div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:4px">${p.programName}</div>
+      ${p.days.map((d,i)=>`<div class="template-card" style="margin:4px 0;padding:10px 14px;display:flex;align-items:center;gap:8px" data-action="start-template" data-id="${d.id}">
+        <span class="program-day-num">Day ${i+1}</span>
+        <div style="flex:1;min-width:0"><h3 style="font-size:14px;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.dayLabel||d.name||'Untitled'}</h3>
+        <div class="meta">${d.exercises?.length||0} exercises</div></div>
+      </div>`).join('')}
+    </div>
+  `).join('');
+
+  const standaloneHtml=standalone.map(t=>`<div class="template-card" style="margin:8px 0" data-action="start-template" data-id="${t.id}">
+    <h3>${t.name||'Untitled'}</h3>
+    <div class="meta">${t.exercises?.length||0} exercises</div>
+    <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">
+      ${(t.exercises||[]).slice(0,4).map(e=>`<span class="chip" style="font-size:10px;padding:2px 6px">${e.exerciseName||e.exerciseId}</span>`).join('')}
+      ${(t.exercises||[]).length>4?`<span class="chip" style="font-size:10px;padding:2px 6px">+${t.exercises.length-4} more</span>`:''}
+    </div>
+  </div>`).join('');
+
   const root=$('#overlay-root');
   root.innerHTML=`<div class="modal-overlay fade-in">
     <div class="modal slide-up">
       <h2>Start Workout</h2>
       <button class="btn btn-primary btn-block mb-8" data-action="empty-workout">${icons.plus} Empty Workout</button>
       <button class="btn btn-secondary btn-block mb-16" data-action="new-template">${icons.edit} Create New Routine</button>
-      ${templates.length?`<div class="section-label" style="padding-left:0">Your Routines</div>
-      ${templates.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0)).map(t=>`<div class="template-card" style="margin:8px 0" data-action="start-template" data-id="${t.id}">
-        <h3>${t.name||'Untitled'}</h3>
-        <div class="meta">${t.exercises?.length||0} exercises</div>
-        <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">
-          ${(t.exercises||[]).slice(0,4).map(e=>`<span class="chip" style="font-size:10px;padding:2px 6px">${e.exerciseName||e.exerciseId}</span>`).join('')}
-          ${(t.exercises||[]).length>4?`<span class="chip" style="font-size:10px;padding:2px 6px">+${t.exercises.length-4} more</span>`:''}
-        </div>
-      </div>`).join('')}`:'<div class="empty-state" style="padding:24px 0"><p>No routines yet. Create one to get started!</p></div>'}
+      ${hasProg||hasStandalone?`
+        ${hasProg?'<div class="section-label" style="padding-left:0">Programs</div>'+programHtml:''}
+        ${hasStandalone?'<div class="section-label" style="padding-left:0">Routines</div>'+standaloneHtml:''}
+      `:'<div class="empty-state" style="padding:24px 0"><p>No routines yet. Create one to get started!</p></div>'}
       <button class="btn btn-ghost btn-block mt-16" data-action="close-modal">Cancel</button>
     </div>
   </div>`;
@@ -1737,29 +1804,95 @@ async function viewExerciseDetail(id){
 // --- TEMPLATES VIEW ---
 async function viewTemplates(param){
   if(param==='new')return viewTemplateEditor(null);
+  if(param==='new-program')return viewProgramEditor(null);
+  if(param&&param.startsWith('edit-program/')){return viewProgramEditor(param.slice(13))}
   if(param)return viewTemplateEditor(param);
 
   const templates=await DB.getAll('templates');
-  renderApp(`
-    <div class="app-header"><h1>Workout Templates</h1>
-      <button class="btn btn-sm btn-primary" onclick="Router.navigate('templates/new')">${icons.plus} New</button>
-    </div>
-    ${templates.length?templates.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0)).map(t=>`
-      <div class="template-card" style="cursor:default">
-        <div class="flex items-center" style="justify-content:space-between">
-          <h3>${t.name||'Untitled'}</h3>
-        </div>
-        <div class="meta mt-8">${t.exercises?.length||0} exercises${t.updatedAt?` &middot; Updated ${fmt.dateShort(t.updatedAt)}`:''}</div>
-        <div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap">
-          ${(t.exercises||[]).map(e=>`<span class="chip" style="font-size:11px;padding:3px 8px">${e.exerciseName||e.exerciseId}</span>`).join('')}
-        </div>
-        <div style="display:flex;gap:8px;margin-top:12px">
-          <button class="btn btn-sm btn-primary" onclick="event.stopPropagation();Session.start('${t.id}')">${icons.play} Start</button>
-          <button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();Router.navigate('templates/${t.id}')">${icons.edit} Edit</button>
-        </div>
+  // Group by programId
+  const programs={};
+  const standalone=[];
+  for(const t of templates){
+    if(t.programId){
+      if(!programs[t.programId])programs[t.programId]={programName:t.programName||'Program',days:[]};
+      programs[t.programId].days.push(t);
+    }else{
+      standalone.push(t);
+    }
+  }
+  // Sort days within each program
+  for(const p of Object.values(programs)){
+    p.days.sort((a,b)=>(a.programOrder||0)-(b.programOrder||0));
+  }
+  standalone.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+
+  const programHtml=Object.entries(programs).map(([pid,p])=>`
+    <div class="program-card">
+      <div class="program-header">
+        <h3>${p.programName}</h3>
+        <button class="btn btn-sm btn-ghost" onclick="Router.navigate('templates/edit-program/${pid}')">${icons.edit}</button>
       </div>
-    `).join(''):'<div class="empty-state mt-24"><p>No routines yet. Create your first workout routine!</p><button class="btn btn-primary" onclick="Router.navigate(\'templates/new\')">Create Routine</button></div>'}
+      <div class="program-meta">${p.days.length} workouts</div>
+      ${p.days.map((d,i)=>`<div class="program-day">
+        <span class="program-day-num">Day ${i+1}</span>
+        <span class="program-day-label">${d.dayLabel||d.name||'Untitled'}</span>
+        <span class="meta">${d.exercises?.length||0} ex</span>
+        <button class="btn btn-sm btn-primary" style="padding:6px 12px" onclick="event.stopPropagation();Session.start('${d.id}')">${icons.play}</button>
+      </div>`).join('')}
+    </div>
+  `).join('');
+
+  const standaloneHtml=standalone.map(t=>`
+    <div class="template-card" style="cursor:default">
+      <div class="flex items-center" style="justify-content:space-between">
+        <h3>${t.name||'Untitled'}</h3>
+      </div>
+      <div class="meta mt-8">${t.exercises?.length||0} exercises${t.updatedAt?` &middot; Updated ${fmt.dateShort(t.updatedAt)}`:''}</div>
+      <div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap">
+        ${(t.exercises||[]).map(e=>`<span class="chip" style="font-size:11px;padding:3px 8px">${e.exerciseName||e.exerciseId}</span>`).join('')}
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn btn-sm btn-primary" onclick="event.stopPropagation();Session.start('${t.id}')">${icons.play} Start</button>
+        <button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();Router.navigate('templates/${t.id}')">${icons.edit} Edit</button>
+      </div>
+    </div>
+  `).join('');
+
+  const hasContent=Object.keys(programs).length||standalone.length;
+
+  renderApp(`
+    <div class="app-header" style="position:relative"><h1>Workout Templates</h1>
+      <button class="btn btn-sm btn-primary" id="new-tpl-btn">${icons.plus} New</button>
+    </div>
+    ${hasContent?`
+      ${Object.keys(programs).length?'<div class="section-label">Programs</div>'+programHtml:''}
+      ${standalone.length?'<div class="section-label">Routines</div>'+standaloneHtml:''}
+    `:'<div class="empty-state mt-24"><p>No routines yet. Create your first workout routine!</p><button class="btn btn-primary" onclick="Router.navigate(\'templates/new\')">Create Routine</button></div>'}
   `);
+
+  // Attach New button dropdown
+  const newBtn=$('#new-tpl-btn');
+  if(newBtn){
+    newBtn.onclick=()=>{
+      const existing=$('#new-choice-dd');
+      if(existing){existing.remove();return}
+      const dd=document.createElement('div');
+      dd.id='new-choice-dd';
+      dd.className='new-choice-dropdown';
+      dd.innerHTML=`<button data-action="new-routine">${icons.clipboard} New Routine</button><button data-action="new-program">${icons.copy} New Program</button>`;
+      newBtn.parentElement.appendChild(dd);
+      dd.onclick=e=>{
+        const action=e.target.closest('[data-action]')?.dataset?.action;
+        dd.remove();
+        if(action==='new-routine')Router.navigate('templates/new');
+        else if(action==='new-program')Router.navigate('templates/new-program');
+      };
+      setTimeout(()=>{
+        const close=e=>{if(!dd.contains(e.target)&&e.target!==newBtn){dd.remove();document.removeEventListener('click',close)}};
+        document.addEventListener('click',close);
+      },0);
+    };
+  }
 }
 
 // --- SPLIT EDITOR COMPONENT ---
@@ -2086,10 +2219,197 @@ function SplitEditor({ exercises, allExercises, title, nameValue, showNameInput,
   return { render, exercises };
 }
 
+// --- PROGRAM EDITOR ---
+let _programState = null;
+
+async function viewProgramEditor(progId){
+  // Load from DB if editing existing program, or restore from _programState if returning from SplitEditor
+  if(progId && !_programState){
+    const allTemplates = await DB.getAll('templates');
+    const progTemplates = allTemplates.filter(t=>t.programId===progId).sort((a,b)=>(a.programOrder||0)-(b.programOrder||0));
+    if(progTemplates.length){
+      _programState = {
+        programId: progId,
+        programName: progTemplates[0].programName||'Program',
+        days: progTemplates.map(t=>({id:t.id,dayLabel:t.dayLabel||t.name||'',exercises:t.exercises||[]})),
+        isEdit: true,
+      };
+    }
+  }
+  if(!_programState){
+    _programState = {
+      programId: 'prog-'+uid(),
+      programName: '',
+      days: [],
+      isEdit: false,
+    };
+  }
+
+  const ps = _programState;
+  const isEdit = ps.isEdit;
+
+  renderApp(`
+    <div class="app-header">
+      <button class="back-btn" onclick="_programState=null;Router.navigate('templates')">${icons.chevronLeft}</button>
+      <h1>${isEdit?'Edit Program':'New Program'}</h1>
+      <button class="btn btn-sm btn-primary" id="prog-save">Save</button>
+    </div>
+    <div class="card">
+      <label style="font-size:13px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px">Program Name</label>
+      <input class="input" id="prog-name" placeholder="e.g. Push/Pull/Legs" value="${ps.programName||''}"/>
+    </div>
+    <div class="section-label">Days</div>
+    ${ps.days.length?ps.days.map((d,i)=>`
+      <div class="program-editor-day" data-dayidx="${i}">
+        <div class="day-info">
+          <input class="day-label-input" data-dayidx="${i}" placeholder="Day ${i+1} label" value="${d.dayLabel||''}"/>
+          <div class="day-meta">${d.exercises.length} exercise${d.exercises.length!==1?'s':''}</div>
+        </div>
+        <div class="day-actions">
+          <button class="btn btn-sm btn-secondary" data-action="edit-day" data-idx="${i}">${icons.edit}</button>
+          <button class="btn btn-sm btn-ghost" data-action="remove-day" data-idx="${i}" style="color:var(--danger)">${icons.x}</button>
+        </div>
+      </div>
+    `).join(''):'<div class="empty-state" style="padding:24px"><p>No days yet. Add your first workout day.</p></div>'}
+    <div style="padding:8px 16px">
+      <button class="btn btn-secondary btn-block" id="prog-add-day">${icons.plus} Add Day</button>
+    </div>
+    ${isEdit?`<div style="padding:16px"><button class="btn btn-danger btn-block" id="prog-delete">${icons.trash} Delete Program</button></div>`:''}
+  `);
+
+  // Attach listeners
+  $('#prog-save').onclick = async ()=>{
+    // Capture latest name + day labels
+    const nameInput=$('#prog-name');
+    ps.programName = nameInput?.value||'Untitled';
+    $$('.day-label-input').forEach(inp=>{
+      const idx=parseInt(inp.dataset.dayidx);
+      if(!isNaN(idx)&&ps.days[idx]) ps.days[idx].dayLabel=inp.value;
+    });
+    if(!ps.days.length){toast('Add at least one day');return}
+
+    // Delete old templates for this program that are no longer in the days list
+    if(isEdit){
+      const allTpl = await DB.getAll('templates');
+      const oldIds = allTpl.filter(t=>t.programId===ps.programId).map(t=>t.id);
+      const newIds = new Set(ps.days.map(d=>d.id));
+      for(const oid of oldIds){
+        if(!newIds.has(oid)) await DB.delete('templates',oid);
+      }
+    }
+
+    // Save each day as a template
+    for(let i=0;i<ps.days.length;i++){
+      const d=ps.days[i];
+      const tpl = {
+        id: d.id,
+        name: d.dayLabel||'Day '+(i+1),
+        programId: ps.programId,
+        programName: ps.programName,
+        dayLabel: d.dayLabel||'Day '+(i+1),
+        programOrder: i,
+        exercises: d.exercises.map((e,j)=>({...e,orderIndex:j})),
+        updatedAt: Date.now(),
+      };
+      await DB.put('templates',tpl);
+    }
+    toast('Program saved!');
+    _programState=null;
+    Router.navigate('templates');
+  };
+
+  $('#prog-add-day').onclick = ()=>{
+    // Save current name + labels before navigating
+    const nameInput=$('#prog-name');
+    ps.programName = nameInput?.value||'';
+    $$('.day-label-input').forEach(inp=>{
+      const idx=parseInt(inp.dataset.dayidx);
+      if(!isNaN(idx)&&ps.days[idx]) ps.days[idx].dayLabel=inp.value;
+    });
+    // Add new day placeholder and open SplitEditor
+    const dayId = uid();
+    const dayIdx = ps.days.length;
+    ps.days.push({id:dayId,dayLabel:'',exercises:[]});
+    _programEditingDayIdx = dayIdx;
+    _launchSplitEditorForDay(dayIdx);
+  };
+
+  $$('[data-action="edit-day"]').forEach(btn=>{
+    btn.onclick = ()=>{
+      const idx=parseInt(btn.dataset.idx);
+      // Save current state
+      const nameInput=$('#prog-name');
+      ps.programName = nameInput?.value||'';
+      $$('.day-label-input').forEach(inp=>{
+        const di=parseInt(inp.dataset.dayidx);
+        if(!isNaN(di)&&ps.days[di]) ps.days[di].dayLabel=inp.value;
+      });
+      _programEditingDayIdx = idx;
+      _launchSplitEditorForDay(idx);
+    };
+  });
+
+  $$('[data-action="remove-day"]').forEach(btn=>{
+    btn.onclick = ()=>{
+      const idx=parseInt(btn.dataset.idx);
+      if(confirm('Remove this day?')){
+        ps.days.splice(idx,1);
+        viewProgramEditor(ps.programId);
+      }
+    };
+  });
+
+  if($('#prog-delete')){
+    $('#prog-delete').onclick = async ()=>{
+      if(!confirm('Delete this entire program and all its workouts?'))return;
+      const allTpl = await DB.getAll('templates');
+      for(const t of allTpl){
+        if(t.programId===ps.programId) await DB.delete('templates',t.id);
+      }
+      toast('Program deleted');
+      _programState=null;
+      Router.navigate('templates');
+    };
+  }
+}
+
+let _programEditingDayIdx = null;
+
+async function _launchSplitEditorForDay(dayIdx){
+  const ps = _programState;
+  const day = ps.days[dayIdx];
+  const allExercises = await DB.getAll('exercises');
+
+  SplitEditor({
+    exercises: day.exercises,
+    allExercises,
+    title: 'Edit Day '+(dayIdx+1),
+    nameValue: day.dayLabel,
+    showNameInput: true,
+    onSave: (name, exercises) => {
+      day.dayLabel = name||'Day '+(dayIdx+1);
+      day.exercises = exercises;
+      _programEditingDayIdx = null;
+      // Navigate back to program editor
+      viewProgramEditor(ps.programId);
+    },
+    onCancel: () => {
+      // If this was a newly added day with no exercises, remove it
+      if(day.exercises.length===0){
+        ps.days.splice(dayIdx,1);
+      }
+      _programEditingDayIdx = null;
+      viewProgramEditor(ps.programId);
+    },
+    onDelete: null,
+  });
+}
+
 // --- TEMPLATE EDITOR VIEW (uses SplitEditor) ---
 async function viewTemplateEditor(id){
   let template=id?await DB.get('templates',id):null;
   const isEdit = !!template;
+  const belongsToProgram = template?.programId;
   if(!template){template={id:uid(),name:'',exercises:[],updatedAt:Date.now()}}
   const allExercises=await DB.getAll('exercises');
 
@@ -2105,9 +2425,13 @@ async function viewTemplateEditor(id){
       template.updatedAt = Date.now();
       await DB.put('templates', template);
       toast('Routine saved!');
-      Router.navigate('templates');
+      if(belongsToProgram){Router.navigate('templates/edit-program/'+belongsToProgram)}
+      else{Router.navigate('templates')}
     },
-    onCancel: () => Router.navigate('templates'),
+    onCancel: () => {
+      if(belongsToProgram){Router.navigate('templates/edit-program/'+belongsToProgram)}
+      else{Router.navigate('templates')}
+    },
     onDelete: isEdit ? async () => {
       if(confirm('Delete this routine?')){await DB.delete('templates',template.id);Router.navigate('templates')}
     } : null,
