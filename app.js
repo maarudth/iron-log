@@ -2950,8 +2950,8 @@ async function clearAllData(){
   await DB.clear('appState');
   // Re-seed exercises
   await DB.clear('exercises');
-  for(const ex of EXERCISES)await DB.put('exercises',{...ex,isCustom:false});
   Session._data=null;
+  await initDB();
   toast('All data cleared');
   viewSettings();
 }
