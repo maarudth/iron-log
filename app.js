@@ -115,6 +115,21 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 .numpad-incr{display:flex;justify-content:center;gap:12px;margin-bottom:12px}
 .numpad-incr button{padding:8px 20px;border-radius:20px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-secondary);font-size:14px;font-weight:600;cursor:pointer}
 
+/* Wheel Picker */
+.wheel-overlay{position:fixed;inset:0;z-index:250;display:flex;flex-direction:column;justify-content:flex-end;background:rgba(0,0,0,0.5)}
+.wheel-sheet{background:var(--bg-secondary);border-top:1px solid var(--border);border-radius:var(--radius-lg) var(--radius-lg) 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom))}
+.wheel-label{text-align:center;font-size:13px;color:var(--text-secondary);margin-bottom:8px}
+.wheel-value{text-align:center;font-size:36px;font-family:var(--font-mono);font-weight:700;margin-bottom:8px}
+.wheel-container{position:relative;height:200px;overflow:hidden;margin:0 auto;max-width:200px}
+.wheel-scroll{height:100%;overflow-y:scroll;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none}
+.wheel-scroll::-webkit-scrollbar{display:none}
+.wheel-item{height:40px;display:flex;align-items:center;justify-content:center;font-size:18px;font-family:var(--font-mono);font-weight:600;color:var(--text-muted);scroll-snap-align:center;cursor:pointer;transition:color .15s,transform .15s}
+.wheel-item.active{color:var(--text-primary);font-size:22px}
+.wheel-highlight{position:absolute;top:50%;left:0;right:0;height:40px;transform:translateY(-50%);border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);pointer-events:none}
+.wheel-mask-top,.wheel-mask-bottom{position:absolute;left:0;right:0;height:80px;pointer-events:none;z-index:1}
+.wheel-mask-top{top:0;background:linear-gradient(var(--bg-secondary),transparent)}
+.wheel-mask-bottom{bottom:0;background:linear-gradient(transparent,var(--bg-secondary))}
+
 /* Modal */
 .modal-overlay{position:fixed;inset:0;z-index:300;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);padding:16px}
 .modal{background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);width:100%;max-width:480px;max-height:80vh;overflow-y:auto;padding:24px}
@@ -313,6 +328,21 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 .split-chip-row{display:flex;gap:4px;overflow-x:auto;padding:0 0 2px;-ms-overflow-style:none;scrollbar-width:none;flex-wrap:nowrap}
 .split-chip-row::-webkit-scrollbar{display:none}
 .split-chip-row .chip{font-size:11px;padding:4px 10px;white-space:nowrap}
+
+/* Exercise thumbnails in editor */
+.split-ex-thumb{width:32px;height:32px;border-radius:6px;object-fit:cover;flex-shrink:0}
+.routine-ex-thumb{width:24px;height:24px;border-radius:4px;object-fit:cover;flex-shrink:0}
+.routine-ex-item .field-group input[readonly]{cursor:pointer;-webkit-user-select:none;user-select:none}
+.routine-ex-item .field-group input[readonly]:active{background:var(--accent-dim);border-color:var(--accent)}
+
+/* Exercise Info Dialog */
+.ex-info-images{display:flex;gap:8px;justify-content:center;padding:16px;background:var(--bg-surface);border-radius:var(--radius) var(--radius) 0 0}
+.ex-info-images img{max-height:200px;max-width:48%;object-fit:contain;border-radius:var(--radius)}
+.ex-info-body{padding:16px}
+.ex-info-body h2{font-size:18px;font-weight:700;margin-bottom:8px}
+.ex-info-body .desc{font-size:14px;color:var(--text-secondary);margin-bottom:12px;line-height:1.5}
+.ex-info-body .tips-list{padding-left:20px;color:var(--text-secondary);font-size:14px}
+.ex-info-body .tips-list li{margin-bottom:4px}
 
 /* External Exercise Browser */
 .ext-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:16px}
@@ -1218,6 +1248,76 @@ const NumPad = {
   }
 };
 
+// --- WHEEL PICKER ---
+const WheelPicker = {
+  _resolve:null,
+  open(label,currentValue,min,max,step){
+    return new Promise(resolve=>{
+      this._resolve=resolve;
+      const values=[];
+      for(let v=min;v<=max;v+=step)values.push(v);
+      const currentIdx=values.indexOf(currentValue)>=0?values.indexOf(currentValue):0;
+      const root=$('#overlay-root');
+      root.innerHTML=`<div class="wheel-overlay fade-in" data-action="wheel-bg">
+        <div class="wheel-sheet slide-up">
+          <div class="wheel-label">${label}</div>
+          <div class="wheel-value">${currentValue}</div>
+          <div class="wheel-container">
+            <div class="wheel-mask-top"></div>
+            <div class="wheel-mask-bottom"></div>
+            <div class="wheel-highlight"></div>
+            <div class="wheel-scroll" id="wheel-scroll">
+              <div style="height:80px"></div>
+              ${values.map((v,i)=>`<div class="wheel-item${i===currentIdx?' active':''}" data-val="${v}" data-idx="${i}">${v}</div>`).join('')}
+              <div style="height:80px"></div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <button class="btn btn-ghost btn-block" data-action="wheel-cancel">Cancel</button>
+            <button class="btn btn-primary btn-block" data-action="wheel-confirm">Done</button>
+          </div>
+        </div>
+      </div>`;
+      const scroll=document.getElementById('wheel-scroll');
+      if(scroll){
+        scroll.scrollTop=currentIdx*40;
+        let scrollTimer=null;
+        scroll.addEventListener('scroll',()=>{
+          clearTimeout(scrollTimer);
+          scrollTimer=setTimeout(()=>{
+            const idx=Math.round(scroll.scrollTop/40);
+            const clamped=Math.max(0,Math.min(values.length-1,idx));
+            scroll.querySelectorAll('.wheel-item').forEach((el,i)=>el.classList.toggle('active',i===clamped));
+            const display=root.querySelector('.wheel-value');
+            if(display)display.textContent=values[clamped];
+          },50);
+        });
+      }
+      root.onclick=e=>{
+        const el=e.target.closest('[data-action]');
+        const item=e.target.closest('.wheel-item');
+        if(item&&scroll){
+          const idx=parseInt(item.dataset.idx);
+          scroll.scrollTo({top:idx*40,behavior:'smooth'});
+          return;
+        }
+        if(!el)return;
+        const action=el.dataset.action;
+        if(action==='wheel-confirm'){
+          const idx=Math.round(scroll.scrollTop/40);
+          const clamped=Math.max(0,Math.min(values.length-1,idx));
+          this._close(values[clamped]);
+        }
+        else if(action==='wheel-cancel'||action==='wheel-bg'){this._close(null)}
+      };
+    });
+  },
+  _close(val){
+    $('#overlay-root').innerHTML='';$('#overlay-root').onclick=null;
+    if(this._resolve)this._resolve(val);this._resolve=null;
+  }
+};
+
 // --- REST TIMER ---
 const RestTimer = {
   _seconds:0,_remaining:0,_interval:null,_active:false,
@@ -1960,8 +2060,10 @@ function SplitEditor({ exercises, allExercises, title, nameValue, showNameInput,
   }
 
   function renderLeftCard(ex) {
+    const hasImg = ex.imageUrl;
     return `<div class="split-ex-card" draggable="true" data-exid="${ex.id}" data-name="${ex.name}">
-      <div class="exercise-icon" style="background:${muscleColor(ex.muscleGroup)}">${ex.name[0]}</div>
+      ${hasImg?`<img class="split-ex-thumb" src="${ex.imageUrl}" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`:''}
+      <div class="exercise-icon" style="background:${muscleColor(ex.muscleGroup)}${hasImg?';display:none':''}">${ex.name[0]}</div>
       <div style="flex:1;min-width:0"><div class="ex-name">${ex.name}</div><div class="ex-sub">${ex.muscleGroup} &middot; ${ex.equipment}</div></div>
       <button class="add-btn" data-action="add-ex" data-exid="${ex.id}" title="Add">${icons.plus}</button>
     </div>`;
@@ -1972,13 +2074,14 @@ function SplitEditor({ exercises, allExercises, title, nameValue, showNameInput,
     return `<div class="routine-ex-item" data-idx="${i}" draggable="true">
       <div class="ex-header">
         <div class="drag-handle">${icons.grip}</div>
+        ${ex?.imageUrl?`<img class="routine-ex-thumb" src="${ex.imageUrl}" alt="" loading="lazy" onerror="this.style.display='none'">`:''}
         <span class="ex-name">${te.exerciseName || ex?.name || te.exerciseId}</span>
         <button class="del-btn" data-action="remove-ex" data-idx="${i}">${icons.trash}</button>
       </div>
       <div class="ex-fields">
-        <div class="field-group"><label>Sets</label><input data-field="targetSets" value="${te.targetSets || 3}" type="number" min="1" max="20"/></div>
-        <div class="field-group"><label>Reps</label><input data-field="targetReps" value="${te.targetReps || 10}" type="number" min="1" max="100"/></div>
-        <div class="field-group"><label>Rest</label><input data-field="restSeconds" value="${te.restSeconds || 90}" type="number" min="0" max="600" style="width:56px"/></div>
+        <div class="field-group"><label>Sets</label><input data-field="targetSets" data-idx="${i}" data-wheel="sets" value="${te.targetSets || 3}" type="number" min="1" max="20" readonly/></div>
+        <div class="field-group"><label>Reps</label><input data-field="targetReps" data-idx="${i}" data-wheel="reps" value="${te.targetReps || 10}" type="number" min="1" max="100" readonly/></div>
+        <div class="field-group"><label>Rest</label><input data-field="restSeconds" data-idx="${i}" data-wheel="rest" value="${te.restSeconds || 90}" type="number" min="0" max="600" style="width:56px" readonly/></div>
         <span class="text-muted" style="font-size:11px;margin-left:2px">sec</span>
       </div>
     </div>`;
@@ -2043,6 +2146,7 @@ function SplitEditor({ exercises, allExercises, title, nameValue, showNameInput,
       if (list) list.innerHTML = getFilteredExercises().map(ex => renderLeftCard(ex)).join('');
       attachLeftDrag();
       attachAddButtons();
+      attachCardClicks();
     });
 
     // Chips
@@ -2056,12 +2160,15 @@ function SplitEditor({ exercises, allExercises, title, nameValue, showNameInput,
       if (list) list.innerHTML = getFilteredExercises().map(ex => renderLeftCard(ex)).join('');
       attachLeftDrag();
       attachAddButtons();
+      attachCardClicks();
     });
 
     attachAddButtons();
     attachLeftDrag();
     attachRightDrag();
     attachTouchReorder();
+    attachCardClicks();
+    attachWheelInputs();
   }
 
   function attachAddButtons() {
@@ -2075,6 +2182,74 @@ function SplitEditor({ exercises, allExercises, title, nameValue, showNameInput,
       btn.addEventListener('click', e => {
         e.stopPropagation();
         removeExercise(parseInt(btn.dataset.idx));
+      });
+    });
+  }
+
+  function showExerciseInfoDialog(ex) {
+    const root=$('#overlay-root');
+    let imageHTML='';
+    if(ex.images&&ex.images.length>0){
+      imageHTML=`<div class="ex-info-images">${ex.images.map(img=>`<img src="${img}" alt="${ex.name}" loading="lazy" onerror="this.style.display='none'"/>`).join('')}</div>`;
+    } else if(ex.imageUrl){
+      imageHTML=`<div class="ex-info-images"><img src="${ex.imageUrl}" alt="${ex.name}" loading="lazy" onerror="this.style.display='none'"/></div>`;
+    } else {
+      imageHTML=`<div style="display:flex;justify-content:center;padding:16px;background:var(--bg-surface);border-radius:var(--radius) var(--radius) 0 0"><div class="exercise-svg-container" style="margin:0">${SVGAnimations.get(ex.animationId,ex.muscleGroup)}</div></div>`;
+    }
+    root.innerHTML=`<div class="modal-overlay fade-in"><div class="modal slide-up" style="padding:0;overflow:hidden">
+      <div style="display:flex;justify-content:flex-end;padding:8px 8px 0;position:absolute;right:0;top:0;z-index:1">
+        <button class="btn btn-ghost btn-sm" data-action="close-info" style="background:rgba(0,0,0,0.3);color:#fff;border-radius:50%;width:32px;height:32px;padding:0;display:flex;align-items:center;justify-content:center">${icons.x}</button>
+      </div>
+      ${imageHTML}
+      <div class="ex-info-body">
+        <h2>${ex.name}</h2>
+        <div class="flex gap-8 mb-8" style="flex-wrap:wrap">
+          <span class="chip" style="background:${muscleColor(ex.muscleGroup)};color:#fff;border:none">${ex.muscleGroup}</span>
+          ${(ex.secondaryMuscles||[]).map(m=>`<span class="chip">${m}</span>`).join('')}
+          <span class="chip">${ex.equipment}</span>
+        </div>
+        ${ex.description?`<div class="desc">${ex.description}</div>`:''}
+        ${ex.tips&&ex.tips.length?`<div style="font-weight:600;margin-bottom:6px">Tips</div><ul class="tips-list">${ex.tips.map(t=>`<li>${t}</li>`).join('')}</ul>`:''}
+        <button class="btn btn-primary btn-block" style="margin-top:16px" data-action="info-add" data-exid="${ex.id}">Add to Routine</button>
+      </div>
+    </div></div>`;
+    root.onclick=e=>{
+      const el=e.target.closest('[data-action]');if(!el)return;
+      if(el.dataset.action==='close-info'){root.innerHTML='';root.onclick=null}
+      else if(el.dataset.action==='info-add'){root.innerHTML='';root.onclick=null;addExercise(el.dataset.exid)}
+    };
+  }
+
+  function attachCardClicks() {
+    document.querySelectorAll('.split-ex-card').forEach(card => {
+      card.addEventListener('click', e => {
+        if(e.target.closest('.add-btn'))return;
+        const exId=card.dataset.exid;
+        const ex=allExercises.find(x=>x.id===exId);
+        if(ex)showExerciseInfoDialog(ex);
+      });
+    });
+  }
+
+  function attachWheelInputs() {
+    document.querySelectorAll('input[data-wheel]').forEach(input => {
+      input.addEventListener('click', async e => {
+        e.preventDefault();
+        const idx=parseInt(input.dataset.idx);
+        const type=input.dataset.wheel;
+        let label,min,max,step,current;
+        if(type==='sets'){label='Sets';min=1;max=20;step=1;current=parseInt(input.value)||3}
+        else if(type==='reps'){label='Reps';min=1;max=100;step=1;current=parseInt(input.value)||10}
+        else{label='Rest (sec)';min=0;max=600;step=5;current=parseInt(input.value)||90}
+        const val=await WheelPicker.open(label,current,min,max,step);
+        if(val!==null){
+          input.value=val;
+          if(exercises[idx]){
+            if(type==='sets')exercises[idx].targetSets=val;
+            else if(type==='reps')exercises[idx].targetReps=val;
+            else exercises[idx].restSeconds=val;
+          }
+        }
       });
     });
   }
