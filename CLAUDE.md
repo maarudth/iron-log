@@ -5,7 +5,7 @@ Single-file vanilla JS progressive web app for tracking weight lifting workouts.
 
 ## Architecture
 
-### Single-file app: `app.js` (~2900 lines)
+### Single-file app: `app.js` (~3100 lines)
 Everything lives in one file in this order:
 1. **CSS** (lines 1-320) - Injected into `<style id="app-styles">` via JS
 2. **Utilities** - `$`, `$$`, `uid`, `fmt`, `toast`, `confetti`
@@ -21,10 +21,11 @@ Everything lives in one file in this order:
 12. **ExternalExercises** - Module to load 873 exercises from `exercises-data.js` global
 13. **Router** - Hash-based router (`#dashboard`, `#library`, `#library/browse-external`, etc.)
 14. **NumPad** - Custom number input overlay
-15. **RestTimer** - Circular countdown timer overlay
-16. **Session** - Active workout state manager (persisted to IndexedDB `appState`)
-17. **Views** - Dashboard, Library, External Browser, Exercise Detail, Templates, SplitEditor, Template Editor, Program Editor, Empty Workout Builder, Session, History, Settings
-18. **init()** - App bootstrap, route registration, service worker registration
+15. **WheelPicker** - Scroll-snap wheel number picker (promise-based, used in SplitEditor for sets/reps/rest)
+16. **RestTimer** - Circular countdown timer overlay
+17. **Session** - Active workout state manager (persisted to IndexedDB `appState`)
+18. **Views** - Dashboard, Library, External Browser, Exercise Detail, Templates, SplitEditor, Template Editor, Program Editor, Empty Workout Builder, Session, History, Settings
+19. **init()** - App bootstrap, route registration, service worker registration
 
 ### Other files
 - `index.html` - Self-contained: all JS inlined (exercises-data + app.js) for `file://` compatibility. Manifest created as blob URL. ~1.3MB.
@@ -77,7 +78,15 @@ Dark/light theme via `[data-theme]` attribute on `<html>`. Muscle group colors: 
 Add to the `EXERCISES` array. Must include: `id`, `name`, `muscleGroup`, `secondaryMuscles[]`, `equipment`, `category`, `imageUrl`, `images[]`, `tips[]`, `description`. Set `isCustom: false`. External exercises use `ext-` ID prefix. Escape all apostrophes in single-quoted strings.
 
 ### Modifying the SplitEditor
-The `SplitEditor` component (~line 1770) is used by both the template editor and the empty workout builder. It manages its own render cycle and event listeners. Parameters: `{ exercises, allExercises, title, nameValue, showNameInput, onSave, onCancel, onDelete }`.
+The `SplitEditor` component (~line 1900) is used by both the template editor and the empty workout builder. It manages its own render cycle and event listeners. Parameters: `{ exercises, allExercises, title, nameValue, showNameInput, onSave, onCancel, onDelete }`.
+
+Key sub-functions:
+- `renderLeftCard(ex)` — Left panel exercise cards with thumbnail + letter-icon fallback
+- `renderRightItem(te, i)` — Right panel items with thumbnail, readonly inputs using `data-wheel` for WheelPicker
+- `showExerciseInfoDialog(ex)` — Modal with images (3-level fallback), description, tips, "Add to Routine" button
+- `attachCardClicks()` — Click handler on left panel cards to open info dialog
+- `attachWheelInputs()` — Click handler on readonly sets/reps/rest inputs to open WheelPicker
+- Must re-attach `attachCardClicks()` after search/chip filter re-renders the left panel
 
 ### Rebuilding index.html after editing app.js
 Since index.html has app.js inlined, it must be rebuilt after any app.js change:
@@ -116,6 +125,9 @@ Open `index.html` in a browser (works from `file://`). No test framework. Manual
 8. Edit on program header -> program editor with all days listed
 9. Routines -> New Routine -> split layout with drag & drop (existing standalone flow)
 10. FAB -> Empty Workout -> split layout builder
+10a. SplitEditor left panel shows exercise thumbnails (falls back to letter icon)
+10b. Clicking an exercise card in left panel opens info dialog with images, description, tips
+10c. Tapping Sets/Reps/Rest inputs opens scroll wheel picker (not keyboard)
 11. FAB -> template picker modal shows programs grouped with day rows
 12. Complete sets -> rest timer -> finish -> history with PRs
 13. Settings -> Force Refresh clears cache and reloads
