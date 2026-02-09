@@ -2224,7 +2224,8 @@ let _programState = null;
 
 async function viewProgramEditor(progId){
   // Load from DB if editing existing program, or restore from _programState if returning from SplitEditor
-  if(progId && !_programState){
+  if(progId && (!_programState || _programState.programId !== progId)){
+    _programState = null;
     const allTemplates = await DB.getAll('templates');
     const progTemplates = allTemplates.filter(t=>t.programId===progId).sort((a,b)=>(a.programOrder||0)-(b.programOrder||0));
     if(progTemplates.length){
