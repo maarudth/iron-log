@@ -1,0 +1,11 @@
+.claude/
+.playwright-mcp/
+*.png
+!icons/*.png
+generate-exercises.js
+insert-exercises.js
+fix-quotes.js
+rebuild-html.js
+regen-exercises.js
+new-exercises.txt
+nul
