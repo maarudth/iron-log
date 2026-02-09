@@ -22829,9 +22829,9 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 .search-bar .input{padding-left:40px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%236a6a80' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:12px center}
 
 /* Calendar */
-.calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;padding:8px 16px;text-align:center;font-size:13px}
-.calendar-grid .day-header{color:var(--text-muted);font-size:11px;font-weight:600;padding:4px}
-.calendar-grid .day{padding:8px 4px;border-radius:var(--radius-sm);cursor:pointer;font-family:var(--font-mono)}
+.calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;padding:12px 16px;text-align:center;font-size:15px}
+.calendar-grid .day-header{color:var(--text-muted);font-size:12px;font-weight:600;padding:8px 4px}
+.calendar-grid .day{padding:14px 4px;border-radius:var(--radius-sm);cursor:pointer;font-family:var(--font-mono)}
 .calendar-grid .day.has-workout{background:var(--accent-dim);color:var(--accent);font-weight:600}
 .calendar-grid .day.today{border:1px solid var(--accent)}
 .calendar-grid .day.empty{cursor:default}
@@ -24417,7 +24417,7 @@ async function viewTemplates(param){
           ${(t.exercises||[]).map(e=>`<span class="chip" style="font-size:11px;padding:3px 8px">${e.exerciseName||e.exerciseId}</span>`).join('')}
         </div>
         <div style="display:flex;gap:8px;margin-top:12px">
-          <button class="btn btn-sm btn-primary flex-1" onclick="event.stopPropagation();Session.start('${t.id}')">${icons.play} Start</button>
+          <button class="btn btn-sm btn-primary" onclick="event.stopPropagation();Session.start('${t.id}')">${icons.play} Start</button>
           <button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();Router.navigate('templates/${t.id}')">${icons.edit} Edit</button>
         </div>
       </div>
@@ -25306,6 +25306,7 @@ init();
 
 
 </script>
+
 
 
 </body>
