@@ -130,6 +130,20 @@ html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFo
 .wheel-mask-top{top:0;background:linear-gradient(var(--bg-secondary),transparent)}
 .wheel-mask-bottom{bottom:0;background:linear-gradient(transparent,var(--bg-secondary))}
 
+/* Inline Wheel (positioned popover) */
+.iw-backdrop{position:fixed;inset:0;z-index:199}
+.iw-popup{position:fixed;z-index:200;background:var(--bg-secondary);border:1px solid var(--border-accent);border-radius:var(--radius);box-shadow:0 8px 32px rgba(0,0,0,0.5);padding:8px;width:120px}
+.iw-popup .iw-label{text-align:center;font-size:11px;color:var(--text-muted);margin-bottom:2px}
+.iw-popup .iw-wrap{position:relative;height:160px;overflow:hidden}
+.iw-popup .iw-scroll{height:100%;overflow-y:scroll;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none}
+.iw-popup .iw-scroll::-webkit-scrollbar{display:none}
+.iw-popup .iw-item{height:40px;display:flex;align-items:center;justify-content:center;font-size:16px;font-family:var(--font-mono);font-weight:600;color:var(--text-muted);scroll-snap-align:center;cursor:pointer;transition:color .15s}
+.iw-popup .iw-item.active{color:var(--accent);font-size:20px;font-weight:700}
+.iw-popup .iw-hl{position:absolute;left:0;right:0;top:50%;height:40px;transform:translateY(-50%);border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);pointer-events:none;z-index:1}
+.iw-popup .iw-mask-t,.iw-popup .iw-mask-b{position:absolute;left:0;right:0;height:40px;pointer-events:none;z-index:2}
+.iw-popup .iw-mask-t{top:0;background:linear-gradient(var(--bg-secondary),transparent)}
+.iw-popup .iw-mask-b{bottom:0;background:linear-gradient(transparent,var(--bg-secondary))}
+
 /* Modal */
 .modal-overlay{position:fixed;inset:0;z-index:300;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);padding:16px}
 .modal{background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);width:100%;max-width:480px;max-height:80vh;overflow-y:auto;padding:24px}
@@ -1318,6 +1332,78 @@ const WheelPicker = {
   }
 };
 
+// --- INLINE WHEEL (positioned popover near input) ---
+const InlineWheel={
+  _resolve:null,_backdrop:null,_popup:null,_scroll:null,_values:null,
+  open(anchorEl,label,currentValue,min,max,step){
+    return new Promise(resolve=>{
+      this._close(null,true); // close any existing
+      this._resolve=resolve;
+      const values=[];
+      for(let v=min;v<=max;v+=step)values.push(Math.round(v*1000)/1000);
+      let currentIdx=0,minDiff=Infinity;
+      values.forEach((v,i)=>{const diff=Math.abs(v-currentValue);if(diff<minDiff){minDiff=diff;currentIdx=i}});
+
+      const rect=anchorEl.getBoundingClientRect();
+      const popupH=190;
+      const spaceBelow=window.innerHeight-rect.bottom;
+      const showAbove=spaceBelow<popupH&&rect.top>spaceBelow;
+      const top=showAbove?rect.top-popupH-4:rect.bottom+4;
+      const left=Math.max(8,Math.min(window.innerWidth-128,rect.left+rect.width/2-60));
+
+      this._backdrop=document.createElement('div');
+      this._backdrop.className='iw-backdrop';
+      this._backdrop.addEventListener('click',()=>this._confirm());
+      document.body.appendChild(this._backdrop);
+
+      this._popup=document.createElement('div');
+      this._popup.className='iw-popup';
+      this._popup.style.top=top+'px';
+      this._popup.style.left=left+'px';
+      // Safe: all content is from hardcoded values/label, no user-generated HTML
+      this._popup.innerHTML=`<div class="iw-label">${label}</div>
+        <div class="iw-wrap"><div class="iw-hl"></div><div class="iw-mask-t"></div><div class="iw-mask-b"></div>
+          <div class="iw-scroll"><div style="height:60px"></div>${values.map((v,i)=>`<div class="iw-item${i===currentIdx?' active':''}" data-idx="${i}">${v}</div>`).join('')}<div style="height:60px"></div></div>
+        </div>`;
+      document.body.appendChild(this._popup);
+
+      const scroll=this._popup.querySelector('.iw-scroll');
+      this._scroll=scroll;this._values=values;
+      if(scroll){
+        scroll.scrollTop=currentIdx*40;
+        let st=null;
+        scroll.addEventListener('scroll',()=>{clearTimeout(st);st=setTimeout(()=>{
+          const idx=Math.round(scroll.scrollTop/40);
+          const clamped=Math.max(0,Math.min(values.length-1,idx));
+          scroll.querySelectorAll('.iw-item').forEach((el,i)=>el.classList.toggle('active',i===clamped));
+        },50)});
+      }
+      this._popup.addEventListener('click',e=>{
+        const item=e.target.closest('.iw-item');
+        if(item&&scroll){
+          const idx=parseInt(item.dataset.idx);
+          scroll.scrollTo({top:idx*40,behavior:'smooth'});
+          setTimeout(()=>this._confirm(),300);
+        }
+      });
+    });
+  },
+  _confirm(){
+    if(!this._scroll){this._close(null);return}
+    const idx=Math.round(this._scroll.scrollTop/40);
+    const clamped=Math.max(0,Math.min(this._values.length-1,idx));
+    this._close(this._values[clamped]);
+  },
+  _close(val,silent){
+    if(this._backdrop){this._backdrop.remove();this._backdrop=null}
+    if(this._popup){this._popup.remove();this._popup=null}
+    this._scroll=null;this._values=null;
+    if(!silent&&this._resolve)this._resolve(val);
+    if(silent)return;
+    this._resolve=null;
+  }
+};
+
 // --- REST TIMER ---
 const RestTimer = {
   _seconds:0,_remaining:0,_interval:null,_active:false,
@@ -1541,6 +1627,23 @@ const Session = {
       if(el&&this._data)el.textContent=fmt.duration(Date.now()-this._data.startedAt);
     },1000);
   },
+  async startDirect(name,exerciseData){
+    this._data={id:uid(),templateId:null,name:name||'Workout',startedAt:Date.now(),exercises:exerciseData,notes:''};
+    if(exerciseData.length>0)this._data.exercises[0].expanded=true;
+    await this.save();
+    this._startTimer();
+    Router.navigate('session');
+  },
+  cascadeSetValue(exIdx,setIdx,field,oldVal,newVal){
+    if(!this._data)return;
+    const sets=this._data.exercises[exIdx]?.sets;
+    if(!sets)return;
+    for(let i=setIdx+1;i<sets.length;i++){
+      if(sets[i].completed)continue;
+      if(sets[i][field]===oldVal)sets[i][field]=newVal;
+      else break;
+    }
+  },
   isActive(){return !!this._data},
   getData(){return this._data},
 };
@@ -1640,9 +1743,19 @@ async function viewDashboard(){
   // Calculate stats
   const now=Date.now();
   const weekAgo=now-7*24*60*60*1000;
+  const prevWeekStart=now-14*24*60*60*1000;
   const monthAgo=now-30*24*60*60*1000;
   const thisWeek=sessions.filter(s=>s.completedAt>weekAgo);
+  const lastWeek=sessions.filter(s=>s.completedAt>prevWeekStart&&s.completedAt<=weekAgo);
   const totalVolumeWeek=thisWeek.reduce((a,s)=>a+s.totalVolume,0);
+  const totalVolumeLast=lastWeek.reduce((a,s)=>a+s.totalVolume,0);
+
+  // Week-over-week deltas
+  const wowWorkouts=thisWeek.length-lastWeek.length;
+  const wowVolume=totalVolumeWeek-totalVolumeLast;
+  function arrow(delta){return delta>0?`<span style="color:var(--success);font-size:11px;margin-left:4px">\u2191${Math.abs(delta)}</span>`:delta<0?`<span style="color:var(--danger);font-size:11px;margin-left:4px">\u2193${Math.abs(delta)}</span>`:'';}
+  function arrowVol(delta,u){const v=Math.abs(delta);const display=v>=1000?(v/1000).toFixed(1)+'k':v;return delta>0?`<span style="color:var(--success);font-size:11px;margin-left:4px">\u2191${display}</span>`:delta<0?`<span style="color:var(--danger);font-size:11px;margin-left:4px">\u2193${display}</span>`:'';}
+
 
   // Streak calculation
   let streak=0;
@@ -1660,22 +1773,66 @@ async function viewDashboard(){
     return dates.some(d=>d>monthAgo);
   }).slice(0,5);
 
-  const recent=sessions.sort((a,b)=>b.completedAt-a.completedAt).slice(0,5);
+  const sorted=sessions.sort((a,b)=>b.completedAt-a.completedAt);
+  const recent=sorted.slice(0,5);
+
+  // Time-of-day greeting
+  const hour=new Date().getHours();
+  const greeting=hour<12?'Good Morning':hour<17?'Good Afternoon':'Good Evening';
+
+  // Next workout suggestion (if last session used a program template)
+  let nextWorkoutHtml='';
+  if(sorted.length>0){
+    const lastSession=sorted[0];
+    if(lastSession.templateId){
+      const lastTpl=await DB.get('templates',lastSession.templateId);
+      if(lastTpl&&lastTpl.programId){
+        const allTemplates=await DB.getAll('templates');
+        const programDays=allTemplates.filter(t=>t.programId===lastTpl.programId).sort((a,b)=>(a.programOrder||0)-(b.programOrder||0));
+        if(programDays.length>1){
+          const lastIdx=programDays.findIndex(t=>t.id===lastTpl.id);
+          const nextIdx=(lastIdx+1)%programDays.length;
+          const nextDay=programDays[nextIdx];
+          nextWorkoutHtml=`<div class="card" style="border-color:var(--accent);cursor:pointer;margin-top:8px" onclick="Session.start('${nextDay.id}')">
+            <div class="flex items-center gap-8">
+              <span style="color:var(--accent)">${icons.play}</span>
+              <div style="flex:1"><strong>Next: ${nextDay.dayLabel||nextDay.name}</strong>
+              <div class="text-muted" style="font-size:13px">${lastTpl.programName||'Program'} &middot; ${nextDay.exercises?.length||0} exercises</div></div>
+              <span style="color:var(--text-muted)">${icons.chevronRight}</span>
+            </div>
+          </div>`;
+        }
+      }
+    }
+  }
+
+  // Export reminder
+  const lastExport=parseInt(localStorage.getItem('ironlog_lastExport')||'0');
+  const daysSinceExport=(now-lastExport)/(24*60*60*1000);
+  const showExportReminder=sessions.length>=5&&daysSinceExport>30;
 
   renderApp(`
     <div style="padding:24px 16px 8px;display:flex;align-items:flex-start;justify-content:space-between">
-      <div><h1 style="font-size:28px;font-weight:800">Iron Log</h1>
+      <div><h1 style="font-size:28px;font-weight:800">${greeting}</h1>
       <p style="color:var(--text-secondary);font-size:14px">Track. Lift. Progress.</p></div>
       <button class="btn btn-ghost btn-sm" onclick="Router.navigate('settings')" style="color:var(--text-secondary)">${icons.settings} Settings</button>
     </div>
     ${Session.isActive()?`<div class="card" style="border-color:var(--accent);cursor:pointer" onclick="Router.navigate('session')">
       <div class="flex items-center gap-8"><span style="color:var(--accent)">${icons.play}</span><div><strong>Workout in Progress</strong><div class="text-muted" style="font-size:13px">Tap to continue</div></div></div>
     </div>`:''}
+    ${!Session.isActive()&&nextWorkoutHtml?nextWorkoutHtml:''}
+    ${showExportReminder?`<div class="card" style="border-color:var(--warning);margin-top:8px">
+      <div class="flex items-center gap-8">
+        <span style="color:var(--warning)">${icons.download}</span>
+        <div style="flex:1"><strong>Back up your data</strong><div class="text-muted" style="font-size:13px">Last backup: ${lastExport?fmt.date(lastExport):'Never'}</div></div>
+        <button class="btn btn-sm btn-secondary" id="dash-export-btn">Export</button>
+      </div>
+    </div>`:''}
     <div class="stats-grid mt-16">
-      <div class="stat-card"><div class="stat-value">${thisWeek.length}</div><div class="stat-label">This Week</div></div>
-      <div class="stat-card"><div class="stat-value">${fmt.volume(totalVolumeWeek,unit)}</div><div class="stat-label">Volume (${unit})</div></div>
+      <div class="stat-card"><div class="stat-value">${thisWeek.length}${arrow(wowWorkouts)}</div><div class="stat-label">This Week</div></div>
+      <div class="stat-card"><div class="stat-value">${fmt.volume(totalVolumeWeek,unit)}${arrowVol(wowVolume,unit)}</div><div class="stat-label">Volume (${unit})</div></div>
       <div class="stat-card"><div class="stat-value">${streak}</div><div class="stat-label">Day Streak</div></div>
-      <div class="stat-card"><div class="stat-value">${recentPRs.length}</div><div class="stat-label">PRs This Month</div></div>
+      <div class="stat-card" ${recentPRs.length>0?'style="cursor:pointer" id="pr-count-card"':''}><div class="stat-value">${recentPRs.length}</div><div class="stat-label">PRs This Month</div></div>
     </div>
     ${recent.length>0?`
     <div class="section-label mt-24">Recent Workouts</div>
@@ -1686,13 +1843,20 @@ async function viewDashboard(){
     `:`<div class="empty-state mt-24">${icons.exercises}<p>No workouts yet. Start your first workout!</p>
       <button class="btn btn-primary" onclick="startWorkoutFlow()">Start Workout</button></div>`}
     ${recentPRs.length>0?`
-    <div class="section-label mt-24">Recent PRs</div>
-    ${recentPRs.map(pr=>{const ex=EXERCISES.find(e=>e.id===pr.exerciseId);return `<div class="card pr-glow" style="border-color:var(--accent)">
+    <div class="section-label mt-24" id="recent-prs-section">Recent PRs</div>
+    ${(await Promise.all(recentPRs.map(async pr=>{let ex=EXERCISES.find(e=>e.id===pr.exerciseId);if(!ex)ex=await DB.get('exercises',pr.exerciseId);return `<div class="card pr-glow" style="border-color:var(--accent)">
       <div class="flex items-center gap-8">${icons.trophy}<div><strong>${ex?.name||pr.exerciseId}</strong>
       <div class="text-muted" style="font-size:13px">Weight: ${pr.maxWeight?.value||0}${unit} &middot; Reps: ${pr.maxReps?.value||0}</div></div></div>
-    </div>`}).join('')}
+    </div>`}))).join('')}
     `:''}
   `);
+  // Dashboard event listeners
+  $('#pr-count-card')?.addEventListener('click',()=>{
+    const el=$('#recent-prs-section');if(el)el.scrollIntoView({behavior:'smooth'});
+  });
+  $('#dash-export-btn')?.addEventListener('click',async(e)=>{
+    e.stopPropagation();await exportData();localStorage.setItem('ironlog_lastExport',String(Date.now()));viewDashboard();
+  });
 }
 
 // --- EXERCISE LIBRARY VIEW ---
@@ -2747,16 +2911,18 @@ async function renderSession(){
             <button class="btn btn-ghost btn-sm" data-action="remove-ex" data-idx="${_activeExIdx}" style="color:var(--danger);padding:4px">${icons.trash}</button>
           </div>
           <table class="set-table">
-            <thead><tr><th>SET</th><th>PREV</th><th>${unit.toUpperCase()}</th><th>REPS</th><th></th></tr></thead>
+            <thead><tr><th>SET</th><th>PREV</th><th>${unit.toUpperCase()}</th><th>REPS</th><th></th><th></th></tr></thead>
             <tbody>
               ${activeEx.sets.map((set,si)=>{
                 const typeLabel=set.type==='warmup'?'W':set.type==='dropset'?'D':set.type==='failure'?'F':'';
-                return `<tr class="set-row ${set.completed?'completed':''}">
+                const canRemove=!set.completed&&activeEx.sets.length>1;
+                return `<tr class="set-row ${set.completed?'completed':''}" data-ei="${_activeExIdx}" data-si="${si}">
                   <td>${typeLabel?`<span class="set-type-badge" data-action="cycle-type" data-ei="${_activeExIdx}" data-si="${si}" style="cursor:pointer">${typeLabel}</span>`:`<span class="set-num" data-action="cycle-type" data-ei="${_activeExIdx}" data-si="${si}" style="cursor:pointer">${set.setNumber}</span>`}</td>
                   <td class="prev-col">-</td>
                   <td><input class="set-input" value="${set.weight||''}" placeholder="0" data-action="edit-weight" data-ei="${_activeExIdx}" data-si="${si}" readonly/></td>
                   <td><input class="set-input" value="${set.reps||''}" placeholder="0" data-action="edit-reps" data-ei="${_activeExIdx}" data-si="${si}" readonly/></td>
                   <td><button class="set-check ${set.completed?'done':''}" data-action="complete-set" data-ei="${_activeExIdx}" data-si="${si}">${set.completed?icons.check:''}</button></td>
+                  <td>${canRemove?`<button data-action="remove-set" data-ei="${_activeExIdx}" data-si="${si}" style="background:none;border:none;color:var(--text-muted);opacity:0.4;cursor:pointer;font-size:16px;padding:4px;line-height:1">&times;</button>`:''}</td>
                 </tr>`;
               }).join('')}
             </tbody>
@@ -2783,7 +2949,7 @@ async function renderSession(){
 async function loadPreviousData(data,unit){
   for(let ei=0;ei<data.exercises.length;ei++){
     const prev=await Session._getPrevious(data.exercises[ei].exerciseId);
-    const rows=$$(`[data-ei="${ei}"] .prev-col`);
+    const rows=$$(`tr[data-ei="${ei}"] .prev-col`);
     rows.forEach((td,si)=>{
       if(prev[si]){td.textContent=`${prev[si].weight}x${prev[si].reps}`}
     });
@@ -2827,15 +2993,25 @@ function attachSessionListeners(data,unit){
     else if(action==='edit-weight'){
       el.addEventListener('click',async()=>{
         const ei=parseInt(el.dataset.ei),si=parseInt(el.dataset.si);
-        const val=await NumPad.open(`Weight (${unit})`,data.exercises[ei]?.sets[si]?.weight||0,5);
-        if(val!==null){Session.updateSet(ei,si,'weight',val);renderSession()}
+        const oldVal=data.exercises[ei]?.sets[si]?.weight||0;
+        const step=unit==='kg'?1:2.5;
+        const val=await InlineWheel.open(el,`Weight (${unit})`,oldVal,0,500,step);
+        if(val!==null){Session.cascadeSetValue(ei,si,'weight',oldVal,val);Session.updateSet(ei,si,'weight',val);renderSession()}
       });
     }
     else if(action==='edit-reps'){
       el.addEventListener('click',async()=>{
         const ei=parseInt(el.dataset.ei),si=parseInt(el.dataset.si);
-        const val=await NumPad.open('Reps',data.exercises[ei]?.sets[si]?.reps||0,1);
-        if(val!==null){Session.updateSet(ei,si,'reps',val);renderSession()}
+        const oldVal=data.exercises[ei]?.sets[si]?.reps||0;
+        const val=await InlineWheel.open(el,'Reps',oldVal,1,100,1);
+        if(val!==null){Session.cascadeSetValue(ei,si,'reps',oldVal,val);Session.updateSet(ei,si,'reps',val);renderSession()}
+      });
+    }
+    else if(action==='remove-set'){
+      el.addEventListener('click',()=>{
+        const ei=parseInt(el.dataset.ei),si=parseInt(el.dataset.si);
+        if(data.exercises[ei]?.sets.length<=1)return;
+        Session.removeSet(ei,si);renderSession();
       });
     }
     else if(action==='cycle-type'){
@@ -2856,7 +3032,11 @@ function attachSessionListeners(data,unit){
   });
 
   $('#finish-session-btn')?.addEventListener('click',async()=>{
-    if(!confirm('Finish workout?'))return;
+    const totalSets=data.exercises.reduce((a,e)=>a+e.sets.length,0);
+    const completedSets=data.exercises.reduce((a,e)=>a+e.sets.filter(s=>s.completed).length,0);
+    const incomplete=totalSets-completedSets;
+    const msg=incomplete>0?`Finish workout? ${incomplete} of ${totalSets} sets not completed and will not be saved.`:'Finish workout?';
+    if(!confirm(msg))return;
     const result=await Session.finish();
     if(result){
       if(result.newPRs.length>0){confetti();toast(`New PRs: ${result.newPRs.map(p=>`${p.exerciseName} ${p.type}`).join(', ')}!`)}
@@ -2944,8 +3124,8 @@ async function viewHistoryDetail(id){
         <div class="stat-card"><div class="stat-value">${session.totalReps}</div><div class="stat-label">Reps</div></div>
       </div>
     </div>
-    ${session.exercises.map(ex=>{
-      const exInfo=EXERCISES.find(e=>e.id===ex.exerciseId);
+    ${(await Promise.all(session.exercises.map(async ex=>{
+      let exInfo=EXERCISES.find(e=>e.id===ex.exerciseId);if(!exInfo)exInfo=await DB.get('exercises',ex.exerciseId);
       const color=exInfo?muscleColor(exInfo.muscleGroup):'var(--accent)';
       return `<div class="card">
         <div class="flex items-center gap-8 mb-8">
@@ -2957,7 +3137,7 @@ async function viewHistoryDetail(id){
           <tbody>${ex.sets.map(s=>`<tr><td class="set-num">${s.setNumber}</td><td class="mono">${s.weight}</td><td class="mono">${s.reps}</td></tr>`).join('')}</tbody>
         </table>
       </div>`;
-    }).join('')}
+    }))).join('')}
     <div style="padding:16px;display:flex;gap:8px">
       <button class="btn btn-secondary btn-block" onclick="repeatWorkout('${session.id}')">${icons.copy} Repeat</button>
       <button class="btn btn-danger btn-block" onclick="deleteWorkout('${session.id}')">${icons.trash} Delete</button>
@@ -2968,13 +3148,16 @@ async function viewHistoryDetail(id){
 async function repeatWorkout(sessionId){
   const session=await DB.get('sessions',sessionId);
   if(!session)return;
-  // Create a new template-like start from this session
-  const tpl={id:uid(),name:session.name+' (repeat)',exercises:session.exercises.map((e,i)=>({
-    exerciseId:e.exerciseId,exerciseName:e.exerciseName,orderIndex:i,
-    targetSets:e.sets.length,targetReps:e.sets[0]?.reps||10,targetWeight:e.sets[0]?.weight||0,restSeconds:90
-  })),updatedAt:Date.now()};
-  await DB.put('templates',tpl);
-  await Session.start(tpl.id);
+  const exercises=[];
+  for(const e of session.exercises){
+    const prev=await Session._getPrevious(e.exerciseId);
+    const sets=[];
+    for(let i=0;i<e.sets.length;i++){
+      sets.push({setNumber:i+1,weight:prev[i]?.weight||e.sets[i]?.weight||0,reps:prev[i]?.reps||e.sets[i]?.reps||0,type:'normal',rpe:null,completed:false,completedAt:null});
+    }
+    exercises.push({exerciseId:e.exerciseId,exerciseName:e.exerciseName,restSeconds:90,sets,expanded:false});
+  }
+  await Session.startDirect(session.name,exercises);
 }
 
 async function deleteWorkout(sessionId){
@@ -3091,6 +3274,7 @@ async function exportData(){
     const a=document.createElement('a');
     a.href=url;a.download=`ironlog-backup-${new Date().toISOString().slice(0,10)}.json`;
     a.click();URL.revokeObjectURL(url);
+    localStorage.setItem('ironlog_lastExport',String(Date.now()));
     toast('Data exported!');
   }catch(e){toast('Export failed: '+e.message)}
 }
@@ -3104,14 +3288,25 @@ function importData(){
       const text=await file.text();
       const data=JSON.parse(text);
       if(!data.version){throw new Error('Invalid backup file')}
-      if(!confirm(`Import ${data.sessions?.length||0} workouts, ${data.templates?.length||0} templates? This will merge with existing data.`))return;
+      const customEx=(data.exercises||[]).filter(e=>e.isCustom||e.id?.startsWith('ext-'));
+      const programTpls=(data.templates||[]).filter(t=>t.programId);
+      const standaloneTpls=(data.templates||[]).filter(t=>!t.programId);
+      const summary=[
+        `${data.sessions?.length||0} workouts`,
+        customEx.length?`${customEx.length} custom exercises`:'',
+        programTpls.length?`${new Set(programTpls.map(t=>t.programId)).size} programs`:'',
+        standaloneTpls.length?`${standaloneTpls.length} routines`:'',
+        data.personalRecords?.length?`${data.personalRecords.length} PRs`:''
+      ].filter(Boolean).join(', ');
+      if(!confirm(`Import ${summary}?\nThis will merge with your existing data (nothing is deleted).`))return;
       if(data.exercises)for(const item of data.exercises)await DB.put('exercises',item);
       if(data.templates)for(const item of data.templates)await DB.put('templates',item);
       if(data.sessions)for(const item of data.sessions)await DB.put('sessions',item);
       if(data.personalRecords)for(const item of data.personalRecords)await DB.put('personalRecords',item);
       if(data.settings){for(const[k,v]of Object.entries(data.settings))Settings.set(k,v);applyTheme()}
+      localStorage.setItem('ironlog_welcomeDismissed','1');
       toast('Data imported successfully!');
-      viewSettings();
+      Router.navigate('dashboard');
     }catch(e){toast('Import failed: '+e.message)}
   };
   input.click();
@@ -3132,6 +3327,30 @@ async function clearAllData(){
   viewSettings();
 }
 
+// --- WELCOME OVERLAY ---
+// Note: innerHTML usage here is safe - all content is static/hardcoded, no user input
+function showWelcomeOverlay(){
+  const root=$('#overlay-root');
+  root.innerHTML=`<div class="modal-overlay fade-in">
+    <div class="modal slide-up" style="text-align:center">
+      <div style="font-size:32px;font-weight:800;color:var(--accent);margin-bottom:8px">Iron Log</div>
+      <p style="color:var(--text-secondary);margin-bottom:24px">Portable Weight Lifting Journal</p>
+      <button class="btn btn-secondary btn-block mb-8" id="welcome-import">${icons.upload} Import Backup</button>
+      <p style="color:var(--text-muted);font-size:12px;margin-bottom:8px">Restore data from another device</p>
+      <button class="btn btn-primary btn-block" id="welcome-start">${icons.plus} Start Fresh</button>
+    </div>
+  </div>`;
+  $('#welcome-import')?.addEventListener('click',()=>{
+    root.innerHTML='';root.onclick=null;
+    localStorage.setItem('ironlog_welcomeDismissed','1');
+    importData();
+  });
+  $('#welcome-start')?.addEventListener('click',()=>{
+    root.innerHTML='';root.onclick=null;
+    localStorage.setItem('ironlog_welcomeDismissed','1');
+  });
+}
+
 // --- APP INITIALIZATION ---
 async function init(){
   await initDB();
@@ -3146,6 +3365,11 @@ async function init(){
 
   window.addEventListener('hashchange',()=>Router.resolve());
   await Router.resolve();
+
+  // Welcome overlay for first launch
+  const sessions=await DB.getAll('sessions');
+  const dismissed=localStorage.getItem('ironlog_welcomeDismissed');
+  if(sessions.length===0&&!dismissed)showWelcomeOverlay();
 
   // Register service worker
   if('serviceWorker' in navigator){
