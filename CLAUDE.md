@@ -31,7 +31,7 @@ Everything lives in one file in this order:
 - `index.html` - Self-contained: all JS inlined (exercises-data + app.js) for `file://` compatibility. Manifest created as blob URL. ~1.3MB.
 - `exercises-data.js` - `window.__EXERCISE_DB__ = [...]` (873 exercises, ~1MB, generated from exercises.json)
 - `exercises.json` - Raw source data from yuhonas/free-exercise-db (not loaded at runtime)
-- `sw.js` - Service worker with network-first strategy, cache version `ironlog-v6`
+- `sw.js` - Service worker with network-first strategy, cache version `ironlog-v7`
 - `manifest.json` - PWA manifest
 - `icons/` - App icons (192, 512)
 - Build helper scripts (not deployed): `generate-exercises.js`, `regen-exercises.js`, `insert-exercises.js`, `rebuild-html.js`, `fix-quotes.js`
@@ -63,7 +63,7 @@ Dark/light theme via `[data-theme]` attribute on `<html>`. Muscle group colors: 
 - **Single file** - All JS logic stays in `app.js`. Don't split into modules
 - **No external dependencies** - No CDN links, no npm packages
 - **Inlined HTML** - `index.html` has all JS inlined so it works on Android Chrome from `file://` (which blocks `<script src>`)
-- **PWA offline** - Service worker caches all assets. Network-first strategy (v6)
+- **PWA offline** - Service worker caches all assets. Network-first strategy (v7)
 - **Mobile-first** - Touch targets 44px min, `@media(max-width:768px)` breakpoints for layout changes
 - **String escaping** - Exercise descriptions use single-quoted strings. All apostrophes must be escaped (`\'`), no newlines in strings. Use `regen-exercises.js` to regenerate safely.
 

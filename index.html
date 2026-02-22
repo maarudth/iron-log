@@ -23063,9 +23063,11 @@ const fmt = {
   time(d){ return new Date(d).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})},
   duration(ms){ const s=Math.floor(ms/1000),m=Math.floor(s/60),h=Math.floor(m/60); return h>0?`${h}h ${m%60}m`:`${m}m ${s%60}s`},
   timer(sec){ const m=Math.floor(sec/60),s=sec%60; return `${m}:${s.toString().padStart(2,'0')}`},
-  volume(v,unit){ return unit==='kg'?(v*0.453592).toFixed(0):v.toFixed(0)},
-  weight(w,unit){ return unit==='kg'?Math.round(w*0.453592):Math.round(w)},
+  volume(v){ return (+v||0).toFixed(0)},
+  weight(w){ return Math.round(+w||0)},
 };
+function escHtml(s){if(!s)return '';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
+function cvtWt(v,fromUnit){const to=Settings.get('weightUnit');if(!fromUnit||fromUnit===to)return v;return fromUnit==='lbs'?v*0.453592:v*2.20462}
 function toast(msg,dur=2500){
   const el=document.createElement('div');el.className='toast fade-in';el.textContent=msg;
   document.body.appendChild(el);setTimeout(()=>{el.remove()},dur);
@@ -24156,15 +24158,19 @@ const Session = {
   },
   async start(templateId){
     let exercises=[];
+    const allSessions=await DB.getAll('sessions');
+    const currentUnit=Settings.get('weightUnit');
     if(templateId){
       const tpl=await DB.get('templates',templateId);
       if(tpl){
         for(const te of tpl.exercises){
           const ex=await DB.get('exercises',te.exerciseId);
-          const prev=await this._getPrevious(te.exerciseId);
+          const prevData=this._getPreviousFrom(te.exerciseId,allSessions);
+          const prev=prevData.sets;
           const sets=[];
           for(let i=0;i<(te.targetSets||3);i++){
-            sets.push({setNumber:i+1,weight:prev[i]?.weight||te.targetWeight||0,reps:prev[i]?.reps||te.targetReps||0,type:'normal',rpe:null,completed:false,completedAt:null});
+            const w=prev[i]?Math.round(cvtWt(prev[i].weight,prevData.weightUnit)):te.targetWeight||0;
+            sets.push({setNumber:i+1,weight:w,reps:prev[i]?.reps||te.targetReps||0,type:'normal',rpe:null,completed:false,completedAt:null});
           }
           exercises.push({exerciseId:te.exerciseId,exerciseName:ex?.name||te.exerciseId,restSeconds:te.restSeconds||Settings.get('restDefault'),sets,expanded:false});
         }
@@ -24176,23 +24182,25 @@ const Session = {
     this._startTimer();
     Router.navigate('session');
   },
-  async _getPrevious(exerciseId){
-    const sessions=await DB.getAll('sessions');
-    const sorted=sessions.sort((a,b)=>b.startedAt-a.startedAt);
+  _getPreviousFrom(exerciseId,sessions){
+    const sorted=sessions.slice().sort((a,b)=>b.startedAt-a.startedAt);
     for(const s of sorted){
       const ex=s.exercises?.find(e=>e.exerciseId===exerciseId);
-      if(ex)return ex.sets||[];
+      if(ex)return {sets:ex.sets||[],weightUnit:s.weightUnit||null};
     }
-    return [];
+    return {sets:[],weightUnit:null};
   },
   async addExercise(exerciseId){
     if(!this._data)return;
     const ex=await DB.get('exercises',exerciseId);
     if(!ex)return;
-    const prev=await this._getPrevious(exerciseId);
+    const allSessions=await DB.getAll('sessions');
+    const prevData=this._getPreviousFrom(exerciseId,allSessions);
+    const prev=prevData.sets;
     const sets=[];
     for(let i=0;i<3;i++){
-      sets.push({setNumber:i+1,weight:prev[i]?.weight||0,reps:prev[i]?.reps||0,type:'normal',rpe:null,completed:false,completedAt:null});
+      const w=prev[i]?Math.round(cvtWt(prev[i].weight,prevData.weightUnit)):0;
+      sets.push({setNumber:i+1,weight:w,reps:prev[i]?.reps||0,type:'normal',rpe:null,completed:false,completedAt:null});
     }
     this._data.exercises.push({exerciseId,exerciseName:ex.name,restSeconds:Settings.get('restDefault'),sets,expanded:true});
     await this.save();
@@ -24258,6 +24266,7 @@ const Session = {
       startedAt:this._data.startedAt,
       completedAt:Date.now(),
       duration:Date.now()-this._data.startedAt,
+      weightUnit:Settings.get('weightUnit'),
       exercises:this._data.exercises.map(e=>({
         exerciseId:e.exerciseId,exerciseName:e.exerciseName,
         sets:e.sets.filter(s=>s.completed).map(s=>({setNumber:s.setNumber,weight:s.weight,reps:s.reps,type:s.type,rpe:s.rpe,completedAt:s.completedAt}))
@@ -24273,14 +24282,19 @@ const Session = {
   },
   async _checkPRs(session){
     const newPRs=[];
+    const unit=session.weightUnit||Settings.get('weightUnit');
     for(const ex of session.exercises){
       const pr=(await DB.get('personalRecords',ex.exerciseId))||{exerciseId:ex.exerciseId,maxWeight:{value:0},maxVolume:{value:0},maxReps:{value:0}};
       let updated=false;
       for(const set of ex.sets){
-        if(set.weight>pr.maxWeight.value){pr.maxWeight={value:set.weight,date:session.completedAt,sessionId:session.id};updated=true;newPRs.push({exerciseName:ex.exerciseName,type:'Weight',value:set.weight})}
+        const oldWt=cvtWt(pr.maxWeight.value,pr.maxWeight.unit);
+        const newWt=cvtWt(set.weight,unit);
+        if(newWt>oldWt){pr.maxWeight={value:set.weight,unit,date:session.completedAt,sessionId:session.id};updated=true;newPRs.push({exerciseName:ex.exerciseName,type:'Weight',value:set.weight})}
         if(set.reps>pr.maxReps.value){pr.maxReps={value:set.reps,date:session.completedAt,sessionId:session.id};updated=true;newPRs.push({exerciseName:ex.exerciseName,type:'Reps',value:set.reps})}
         const vol=set.weight*set.reps;
-        if(vol>pr.maxVolume.value){pr.maxVolume={value:vol,date:session.completedAt,sessionId:session.id};updated=true}
+        const oldVol=cvtWt(pr.maxVolume.value,pr.maxVolume.unit);
+        const newVol=cvtWt(vol,unit);
+        if(newVol>oldVol){pr.maxVolume={value:vol,unit,date:session.completedAt,sessionId:session.id};updated=true}
       }
       if(updated)await DB.put('personalRecords',pr);
     }
@@ -24359,20 +24373,20 @@ function showTemplatePickerModal(templates){
 
   const programHtml=Object.entries(programs).map(([pid,p])=>`
     <div style="margin:8px 0">
-      <div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:4px">${p.programName}</div>
+      <div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:4px">${escHtml(p.programName)}</div>
       ${p.days.map((d,i)=>`<div class="template-card" style="margin:4px 0;padding:10px 14px;display:flex;align-items:center;gap:8px" data-action="start-template" data-id="${d.id}">
         <span class="program-day-num">Day ${i+1}</span>
-        <div style="flex:1;min-width:0"><h3 style="font-size:14px;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.dayLabel||d.name||'Untitled'}</h3>
+        <div style="flex:1;min-width:0"><h3 style="font-size:14px;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(d.dayLabel||d.name)||'Untitled'}</h3>
         <div class="meta">${d.exercises?.length||0} exercises</div></div>
       </div>`).join('')}
     </div>
   `).join('');
 
   const standaloneHtml=standalone.map(t=>`<div class="template-card" style="margin:8px 0" data-action="start-template" data-id="${t.id}">
-    <h3>${t.name||'Untitled'}</h3>
+    <h3>${escHtml(t.name)||'Untitled'}</h3>
     <div class="meta">${t.exercises?.length||0} exercises</div>
     <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">
-      ${(t.exercises||[]).slice(0,4).map(e=>`<span class="chip" style="font-size:10px;padding:2px 6px">${e.exerciseName||e.exerciseId}</span>`).join('')}
+      ${(t.exercises||[]).slice(0,4).map(e=>`<span class="chip" style="font-size:10px;padding:2px 6px">${escHtml(e.exerciseName||e.exerciseId)}</span>`).join('')}
       ${(t.exercises||[]).length>4?`<span class="chip" style="font-size:10px;padding:2px 6px">+${t.exercises.length-4} more</span>`:''}
     </div>
   </div>`).join('');
@@ -24413,8 +24427,8 @@ async function viewDashboard(){
   const monthAgo=now-30*24*60*60*1000;
   const thisWeek=sessions.filter(s=>s.completedAt>weekAgo);
   const lastWeek=sessions.filter(s=>s.completedAt>prevWeekStart&&s.completedAt<=weekAgo);
-  const totalVolumeWeek=thisWeek.reduce((a,s)=>a+s.totalVolume,0);
-  const totalVolumeLast=lastWeek.reduce((a,s)=>a+s.totalVolume,0);
+  const totalVolumeWeek=thisWeek.reduce((a,s)=>a+cvtWt(s.totalVolume,s.weightUnit),0);
+  const totalVolumeLast=lastWeek.reduce((a,s)=>a+cvtWt(s.totalVolume,s.weightUnit),0);
 
   // Week-over-week deltas
   const wowWorkouts=thisWeek.length-lastWeek.length;
@@ -24462,8 +24476,8 @@ async function viewDashboard(){
           nextWorkoutHtml=`<div class="card" style="border-color:var(--accent);cursor:pointer;margin-top:8px" onclick="Session.start('${nextDay.id}')">
             <div class="flex items-center gap-8">
               <span style="color:var(--accent)">${icons.play}</span>
-              <div style="flex:1"><strong>Next: ${nextDay.dayLabel||nextDay.name}</strong>
-              <div class="text-muted" style="font-size:13px">${lastTpl.programName||'Program'} &middot; ${nextDay.exercises?.length||0} exercises</div></div>
+              <div style="flex:1"><strong>Next: ${escHtml(nextDay.dayLabel||nextDay.name)}</strong>
+              <div class="text-muted" style="font-size:13px">${escHtml(lastTpl.programName)||'Program'} &middot; ${nextDay.exercises?.length||0} exercises</div></div>
               <span style="color:var(--text-muted)">${icons.chevronRight}</span>
             </div>
           </div>`;
@@ -24496,14 +24510,14 @@ async function viewDashboard(){
     </div>`:''}
     <div class="stats-grid mt-16">
       <div class="stat-card"><div class="stat-value">${thisWeek.length}${arrow(wowWorkouts)}</div><div class="stat-label">This Week</div></div>
-      <div class="stat-card"><div class="stat-value">${fmt.volume(totalVolumeWeek,unit)}${arrowVol(wowVolume,unit)}</div><div class="stat-label">Volume (${unit})</div></div>
+      <div class="stat-card"><div class="stat-value">${fmt.volume(totalVolumeWeek)}${arrowVol(wowVolume,unit)}</div><div class="stat-label">Volume (${unit})</div></div>
       <div class="stat-card"><div class="stat-value">${streak}</div><div class="stat-label">Day Streak</div></div>
       <div class="stat-card" ${recentPRs.length>0?'style="cursor:pointer" id="pr-count-card"':''}><div class="stat-value">${recentPRs.length}</div><div class="stat-label">PRs This Month</div></div>
     </div>
     ${recent.length>0?`
     <div class="section-label mt-24">Recent Workouts</div>
     ${recent.map(s=>`<div class="history-item" onclick="Router.navigate('history/${s.id}')">
-      <div style="flex:1"><strong>${s.name||'Workout'}</strong><div class="history-date">${fmt.date(s.completedAt)} &middot; ${fmt.duration(s.duration)} &middot; ${s.totalSets} sets</div></div>
+      <div style="flex:1"><strong>${escHtml(s.name)||'Workout'}</strong><div class="history-date">${fmt.date(s.completedAt)} &middot; ${fmt.duration(s.duration)} &middot; ${s.totalSets} sets</div></div>
       <span style="color:var(--text-muted)">${icons.chevronRight}</span>
     </div>`).join('')}
     `:`<div class="empty-state mt-24">${icons.exercises}<p>No workouts yet. Start your first workout!</p>
@@ -24511,8 +24525,8 @@ async function viewDashboard(){
     ${recentPRs.length>0?`
     <div class="section-label mt-24" id="recent-prs-section">Recent PRs</div>
     ${(await Promise.all(recentPRs.map(async pr=>{let ex=EXERCISES.find(e=>e.id===pr.exerciseId);if(!ex)ex=await DB.get('exercises',pr.exerciseId);return `<div class="card pr-glow" style="border-color:var(--accent)">
-      <div class="flex items-center gap-8">${icons.trophy}<div><strong>${ex?.name||pr.exerciseId}</strong>
-      <div class="text-muted" style="font-size:13px">Weight: ${pr.maxWeight?.value||0}${unit} &middot; Reps: ${pr.maxReps?.value||0}</div></div></div>
+      <div class="flex items-center gap-8">${icons.trophy}<div><strong>${escHtml(ex?.name)||escHtml(pr.exerciseId)}</strong>
+      <div class="text-muted" style="font-size:13px">Weight: ${fmt.weight(cvtWt(pr.maxWeight?.value||0,pr.maxWeight?.unit))}${unit} &middot; Reps: ${pr.maxReps?.value||0}</div></div></div>
     </div>`}))).join('')}
     `:''}
   `);
@@ -24579,9 +24593,9 @@ async function viewLibrary(param){
 function renderExerciseCard(ex){
   const color=muscleColor(ex.muscleGroup);
   return `<div class="exercise-img-card" onclick="Router.navigate('library/${ex.id}')">
-    ${ex.imageUrl?`<img class="exercise-img" src="${ex.imageUrl}" alt="${ex.name}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`:''}
-    <div class="exercise-icon" style="background:${color};${ex.imageUrl?'display:none':''}">${ex.name[0]}</div>
-    <div style="flex:1"><h3>${ex.name}</h3><div class="sub">${ex.muscleGroup} &middot; ${ex.equipment}</div></div>
+    ${ex.imageUrl?`<img class="exercise-img" src="${ex.imageUrl}" alt="${escHtml(ex.name)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`:''}
+    <div class="exercise-icon" style="background:${color};${ex.imageUrl?'display:none':''}">${escHtml(ex.name[0])}</div>
+    <div style="flex:1"><h3>${escHtml(ex.name)}</h3><div class="sub">${escHtml(ex.muscleGroup)} &middot; ${escHtml(ex.equipment)}</div></div>
     <span style="color:var(--text-muted)">${icons.chevronRight}</span>
   </div>`;
 }
@@ -24611,9 +24625,9 @@ async function viewExternalExerciseList(muscleGroup) {
   renderApp(`
     <div class="app-header">
       <button class="back-btn" onclick="Router.navigate('library/browse-external')">${icons.chevronLeft}</button>
-      <h1>${muscleGroup}</h1>
+      <h1>${escHtml(muscleGroup)}</h1>
     </div>
-    <div class="search-bar"><input class="input" id="ext-search" placeholder="Search ${muscleGroup.toLowerCase()} exercises..." autocomplete="off"/></div>
+    <div class="search-bar"><input class="input" id="ext-search" placeholder="Search ${escHtml(muscleGroup.toLowerCase())} exercises..." autocomplete="off"/></div>
     <div id="ext-list"><div class="ext-spinner"></div></div>
     <div class="ext-count hidden" id="ext-count-bar">
       <span id="ext-count-text">0 selected</span>
@@ -24647,10 +24661,10 @@ async function viewExternalExerciseList(muscleGroup) {
     list.innerHTML = filtered.length ? filtered.map(e => `<div class="ext-ex-card ${selected.has(e.id) ? 'selected' : ''}" data-id="${e.id}">
       <div class="ext-check">${selected.has(e.id) ? icons.check : ''}</div>
       <div class="ext-ex-info">
-        <h4>${e.name}</h4>
-        <div class="sub">${e.equipment}${e.secondaryMuscles.length ? ' &middot; ' + e.secondaryMuscles.join(', ') : ''}</div>
+        <h4>${escHtml(e.name)}</h4>
+        <div class="sub">${escHtml(e.equipment)}${e.secondaryMuscles.length ? ' &middot; ' + e.secondaryMuscles.map(m=>escHtml(m)).join(', ') : ''}</div>
       </div>
-    </div>`).join('') : '<div class="empty-state" style="padding:32px"><p>All ${muscleGroup} exercises already in your library!</p></div>';
+    </div>`).join('') : '<div class="empty-state" style="padding:32px"><p>All exercises already in your library!</p></div>';
   }
 
   function updateCount() {
@@ -24696,37 +24710,37 @@ async function viewExerciseDetail(id){
   renderApp(`
     <div class="app-header">
       <button class="back-btn" onclick="Router.navigate('library')">${icons.chevronLeft}</button>
-      <h1>${ex.name}</h1>
+      <h1>${escHtml(ex.name)}</h1>
     </div>
     ${ex.images&&ex.images.length>0?`<div style="display:flex;gap:8px;padding:16px;justify-content:center;background:var(--bg-surface)">
-      ${ex.images.map(img=>`<img src="${img}" alt="${ex.name}" loading="lazy" style="max-height:220px;max-width:48%;object-fit:contain;border-radius:var(--radius);background:var(--bg-surface)" onerror="this.style.display='none'"/>`).join('')}
+      ${ex.images.map(img=>`<img src="${img}" alt="${escHtml(ex.name)}" loading="lazy" style="max-height:220px;max-width:48%;object-fit:contain;border-radius:var(--radius);background:var(--bg-surface)" onerror="this.style.display='none'"/>`).join('')}
     </div>`:ex.imageUrl?`<div style="text-align:center;padding:16px;background:var(--bg-surface)">
-      <img src="${ex.imageUrl}" alt="${ex.name}" loading="lazy" style="max-height:240px;object-fit:contain;border-radius:var(--radius)" onerror="this.style.display='none'"/>
+      <img src="${ex.imageUrl}" alt="${escHtml(ex.name)}" loading="lazy" style="max-height:240px;object-fit:contain;border-radius:var(--radius)" onerror="this.style.display='none'"/>
     </div>`:`<div class="exercise-svg-container">${SVGAnimations.get(ex.animationId,ex.muscleGroup)}</div>`}
     <div class="card">
-      <div style="font-size:14px;color:var(--text-secondary)">${ex.description}</div>
+      <div style="font-size:14px;color:var(--text-secondary)">${escHtml(ex.description)}</div>
       <div class="flex gap-8 mt-8" style="flex-wrap:wrap">
-        <span class="chip" style="background:${muscleColor(ex.muscleGroup)};color:#fff;border:none">${ex.muscleGroup}</span>
-        ${ex.secondaryMuscles.map(m=>`<span class="chip">${m}</span>`).join('')}
-        <span class="chip">${ex.equipment}</span>
-        <span class="chip">${ex.category}</span>
+        <span class="chip" style="background:${muscleColor(ex.muscleGroup)};color:#fff;border:none">${escHtml(ex.muscleGroup)}</span>
+        ${ex.secondaryMuscles.map(m=>`<span class="chip">${escHtml(m)}</span>`).join('')}
+        <span class="chip">${escHtml(ex.equipment)}</span>
+        <span class="chip">${escHtml(ex.category)}</span>
       </div>
     </div>
     ${ex.tips?.length?`<div class="card">
       <div style="font-weight:600;margin-bottom:8px">Tips</div>
-      <ul style="padding-left:20px;color:var(--text-secondary);font-size:14px">${ex.tips.map(t=>`<li style="margin-bottom:4px">${t}</li>`).join('')}</ul>
+      <ul style="padding-left:20px;color:var(--text-secondary);font-size:14px">${ex.tips.map(t=>`<li style="margin-bottom:4px">${escHtml(t)}</li>`).join('')}</ul>
     </div>`:''}
     ${pr?`<div class="card pr-glow" style="border-color:var(--accent)">
       <div style="font-weight:600;margin-bottom:8px">${icons.trophy} Personal Records</div>
       <div class="stats-grid" style="padding:0">
-        <div class="stat-card"><div class="stat-value">${pr.maxWeight?.value||0}<small>${unit}</small></div><div class="stat-label">Best Weight</div></div>
+        <div class="stat-card"><div class="stat-value">${fmt.weight(cvtWt(pr.maxWeight?.value||0,pr.maxWeight?.unit))}<small>${unit}</small></div><div class="stat-label">Best Weight</div></div>
         <div class="stat-card"><div class="stat-value">${pr.maxReps?.value||0}</div><div class="stat-label">Best Reps</div></div>
       </div>
     </div>`:''}
     ${history.length?`<div class="section-label">History</div>
     ${history.map(s=>{const exData=s.exercises.find(e=>e.exerciseId===id);
       return `<div class="card"><div class="flex items-center" style="justify-content:space-between"><strong>${fmt.date(s.completedAt)}</strong><span class="text-muted" style="font-size:13px">${exData.sets.length} sets</span></div>
-      <div style="font-size:13px;color:var(--text-secondary);margin-top:4px">${exData.sets.map(st=>`${st.weight}${unit}x${st.reps}`).join(', ')}</div></div>`}).join('')}
+      <div style="font-size:13px;color:var(--text-secondary);margin-top:4px">${exData.sets.map(st=>`${fmt.weight(cvtWt(st.weight,s.weightUnit))}${unit}x${st.reps}`).join(', ')}</div></div>`}).join('')}
     `:''}
   `);
 }
@@ -24759,13 +24773,13 @@ async function viewTemplates(param){
   const programHtml=Object.entries(programs).map(([pid,p])=>`
     <div class="program-card">
       <div class="program-header">
-        <h3>${p.programName}</h3>
+        <h3>${escHtml(p.programName)}</h3>
         <button class="btn btn-sm btn-ghost" onclick="Router.navigate('templates/edit-program/${pid}')">${icons.edit}</button>
       </div>
       <div class="program-meta">${p.days.length} workouts</div>
       ${p.days.map((d,i)=>`<div class="program-day">
         <span class="program-day-num">Day ${i+1}</span>
-        <span class="program-day-label">${d.dayLabel||d.name||'Untitled'}</span>
+        <span class="program-day-label">${escHtml(d.dayLabel||d.name)||'Untitled'}</span>
         <span class="meta">${d.exercises?.length||0} ex</span>
         <button class="btn btn-sm btn-primary" style="padding:6px 12px" onclick="event.stopPropagation();Session.start('${d.id}')">${icons.play}</button>
       </div>`).join('')}
@@ -24775,11 +24789,11 @@ async function viewTemplates(param){
   const standaloneHtml=standalone.map(t=>`
     <div class="template-card" style="cursor:default">
       <div class="flex items-center" style="justify-content:space-between">
-        <h3>${t.name||'Untitled'}</h3>
+        <h3>${escHtml(t.name)||'Untitled'}</h3>
       </div>
       <div class="meta mt-8">${t.exercises?.length||0} exercises${t.updatedAt?` &middot; Updated ${fmt.dateShort(t.updatedAt)}`:''}</div>
       <div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap">
-        ${(t.exercises||[]).map(e=>`<span class="chip" style="font-size:11px;padding:3px 8px">${e.exerciseName||e.exerciseId}</span>`).join('')}
+        ${(t.exercises||[]).map(e=>`<span class="chip" style="font-size:11px;padding:3px 8px">${escHtml(e.exerciseName||e.exerciseId)}</span>`).join('')}
       </div>
       <div style="display:flex;gap:8px;margin-top:12px">
         <button class="btn btn-sm btn-primary" onclick="event.stopPropagation();Session.start('${t.id}')">${icons.play} Start</button>
@@ -24868,7 +24882,7 @@ function SplitEditor({ exercises, allExercises, title, nameValue, showNameInput,
           </div>
         </div>
         <div class="split-right">
-          ${showNameInput ? `<div class="split-right-header"><input class="input" id="split-name" placeholder="Routine name (e.g. Push Day)" value="${nameValue || ''}"/></div>` : ''}
+          ${showNameInput ? `<div class="split-right-header"><input class="input" id="split-name" placeholder="Routine name (e.g. Push Day)" value="${escHtml(nameValue)||''}"/></div>` : ''}
           <div class="split-right-list" id="split-right-list">
             ${exercises.length ? exercises.map((te, i) => renderDropZone(i) + renderRightItem(te, i)).join('') + renderDropZone(exercises.length) :
             `<div class="split-empty">${icons.plus}<span>Add exercises from the left panel</span><span style="font-size:12px;color:var(--text-muted)">Click + or drag exercises here</span></div>`}
@@ -24891,10 +24905,10 @@ function SplitEditor({ exercises, allExercises, title, nameValue, showNameInput,
 
   function renderLeftCard(ex) {
     const hasImg = ex.imageUrl;
-    return `<div class="split-ex-card" draggable="true" data-exid="${ex.id}" data-name="${ex.name}">
+    return `<div class="split-ex-card" draggable="true" data-exid="${ex.id}">
       ${hasImg?`<img class="split-ex-thumb" src="${ex.imageUrl}" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`:''}
-      <div class="exercise-icon" style="background:${muscleColor(ex.muscleGroup)}${hasImg?';display:none':''}">${ex.name[0]}</div>
-      <div style="flex:1;min-width:0"><div class="ex-name">${ex.name}</div><div class="ex-sub">${ex.muscleGroup} &middot; ${ex.equipment}</div></div>
+      <div class="exercise-icon" style="background:${muscleColor(ex.muscleGroup)}${hasImg?';display:none':''}">${escHtml(ex.name[0])}</div>
+      <div style="flex:1;min-width:0"><div class="ex-name">${escHtml(ex.name)}</div><div class="ex-sub">${escHtml(ex.muscleGroup)} &middot; ${escHtml(ex.equipment)}</div></div>
       <button class="add-btn" data-action="add-ex" data-exid="${ex.id}" title="Add">${icons.plus}</button>
     </div>`;
   }
@@ -24905,7 +24919,7 @@ function SplitEditor({ exercises, allExercises, title, nameValue, showNameInput,
       <div class="ex-header">
         <div class="drag-handle">${icons.grip}</div>
         ${ex?.imageUrl?`<img class="routine-ex-thumb" src="${ex.imageUrl}" alt="" loading="lazy" onerror="this.style.display='none'">`:''}
-        <span class="ex-name">${te.exerciseName || ex?.name || te.exerciseId}</span>
+        <span class="ex-name">${escHtml(te.exerciseName || ex?.name || te.exerciseId)}</span>
         <button class="del-btn" data-action="remove-ex" data-idx="${i}">${icons.trash}</button>
       </div>
       <div class="ex-fields">
@@ -25020,9 +25034,9 @@ function SplitEditor({ exercises, allExercises, title, nameValue, showNameInput,
     const root=$('#overlay-root');
     let imageHTML='';
     if(ex.images&&ex.images.length>0){
-      imageHTML=`<div class="ex-info-images">${ex.images.map(img=>`<img src="${img}" alt="${ex.name}" loading="lazy" onerror="this.style.display='none'"/>`).join('')}</div>`;
+      imageHTML=`<div class="ex-info-images">${ex.images.map(img=>`<img src="${img}" alt="${escHtml(ex.name)}" loading="lazy" onerror="this.style.display='none'"/>`).join('')}</div>`;
     } else if(ex.imageUrl){
-      imageHTML=`<div class="ex-info-images"><img src="${ex.imageUrl}" alt="${ex.name}" loading="lazy" onerror="this.style.display='none'"/></div>`;
+      imageHTML=`<div class="ex-info-images"><img src="${ex.imageUrl}" alt="${escHtml(ex.name)}" loading="lazy" onerror="this.style.display='none'"/></div>`;
     } else {
       imageHTML=`<div style="display:flex;justify-content:center;padding:16px;background:var(--bg-surface);border-radius:var(--radius) var(--radius) 0 0"><div class="exercise-svg-container" style="margin:0">${SVGAnimations.get(ex.animationId,ex.muscleGroup)}</div></div>`;
     }
@@ -25032,14 +25046,14 @@ function SplitEditor({ exercises, allExercises, title, nameValue, showNameInput,
       </div>
       ${imageHTML}
       <div class="ex-info-body">
-        <h2>${ex.name}</h2>
+        <h2>${escHtml(ex.name)}</h2>
         <div class="flex gap-8 mb-8" style="flex-wrap:wrap">
-          <span class="chip" style="background:${muscleColor(ex.muscleGroup)};color:#fff;border:none">${ex.muscleGroup}</span>
-          ${(ex.secondaryMuscles||[]).map(m=>`<span class="chip">${m}</span>`).join('')}
-          <span class="chip">${ex.equipment}</span>
+          <span class="chip" style="background:${muscleColor(ex.muscleGroup)};color:#fff;border:none">${escHtml(ex.muscleGroup)}</span>
+          ${(ex.secondaryMuscles||[]).map(m=>`<span class="chip">${escHtml(m)}</span>`).join('')}
+          <span class="chip">${escHtml(ex.equipment)}</span>
         </div>
-        ${ex.description?`<div class="desc">${ex.description}</div>`:''}
-        ${ex.tips&&ex.tips.length?`<div style="font-weight:600;margin-bottom:6px">Tips</div><ul class="tips-list">${ex.tips.map(t=>`<li>${t}</li>`).join('')}</ul>`:''}
+        ${ex.description?`<div class="desc">${escHtml(ex.description)}</div>`:''}
+        ${ex.tips&&ex.tips.length?`<div style="font-weight:600;margin-bottom:6px">Tips</div><ul class="tips-list">${ex.tips.map(t=>`<li>${escHtml(t)}</li>`).join('')}</ul>`:''}
         <button class="btn btn-primary btn-block" style="margin-top:16px" data-action="info-add" data-exid="${ex.id}">Add to Routine</button>
       </div>
     </div></div>`;
@@ -25262,13 +25276,13 @@ async function viewProgramEditor(progId){
     </div>
     <div class="card">
       <label style="font-size:13px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px">Program Name</label>
-      <input class="input" id="prog-name" placeholder="e.g. Push/Pull/Legs" value="${ps.programName||''}"/>
+      <input class="input" id="prog-name" placeholder="e.g. Push/Pull/Legs" value="${escHtml(ps.programName)||''}"/>
     </div>
     <div class="section-label">Days</div>
     ${ps.days.length?ps.days.map((d,i)=>`
       <div class="program-editor-day" data-dayidx="${i}">
         <div class="day-info">
-          <input class="day-label-input" data-dayidx="${i}" placeholder="Day ${i+1} label" value="${d.dayLabel||''}"/>
+          <input class="day-label-input" data-dayidx="${i}" placeholder="Day ${i+1} label" value="${escHtml(d.dayLabel)||''}"/>
           <div class="day-meta">${d.exercises.length} exercise${d.exercises.length!==1?'s':''}</div>
         </div>
         <div class="day-actions">
@@ -25480,8 +25494,8 @@ function showExercisePicker(exercises,onSelect){
     <input class="input mb-16" id="picker-search" placeholder="Search exercises..." autocomplete="off"/>
     <div id="picker-list" style="max-height:50vh;overflow-y:auto">
       ${exercises.map(ex=>`<div class="exercise-card" data-action="pick-ex" data-id="${ex.id}">
-        <div class="exercise-icon" style="background:${muscleColor(ex.muscleGroup)}">${ex.name[0]}</div>
-        <div><h3>${ex.name}</h3><div class="sub">${ex.muscleGroup} &middot; ${ex.equipment}</div></div>
+        <div class="exercise-icon" style="background:${muscleColor(ex.muscleGroup)}">${escHtml(ex.name[0])}</div>
+        <div><h3>${escHtml(ex.name)}</h3><div class="sub">${escHtml(ex.muscleGroup)} &middot; ${escHtml(ex.equipment)}</div></div>
       </div>`).join('')}
     </div>
   </div></div>`;
@@ -25499,8 +25513,8 @@ function showExercisePicker(exercises,onSelect){
     const list=$('#picker-list');if(!list)return;
     const filtered=exercises.filter(ex=>ex.name.toLowerCase().includes(q));
     list.innerHTML=filtered.map(ex=>`<div class="exercise-card" data-action="pick-ex" data-id="${ex.id}">
-      <div class="exercise-icon" style="background:${muscleColor(ex.muscleGroup)}">${ex.name[0]}</div>
-      <div><h3>${ex.name}</h3><div class="sub">${ex.muscleGroup} &middot; ${ex.equipment}</div></div>
+      <div class="exercise-icon" style="background:${muscleColor(ex.muscleGroup)}">${escHtml(ex.name[0])}</div>
+      <div><h3>${escHtml(ex.name)}</h3><div class="sub">${escHtml(ex.muscleGroup)} &middot; ${escHtml(ex.equipment)}</div></div>
     </div>`).join('');
   });
 }
@@ -25542,7 +25556,7 @@ async function renderSession(){
   const app=$('#app');
   app.innerHTML=`
     <div class="session-header">
-      <div style="flex:1"><strong>${data.name||'Workout'}</strong><div class="session-timer text-muted" style="font-size:13px;font-family:var(--font-mono)">${elapsed}</div></div>
+      <div style="flex:1"><strong>${escHtml(data.name)||'Workout'}</strong><div class="session-timer text-muted" style="font-size:13px;font-family:var(--font-mono)">${elapsed}</div></div>
       <button class="btn btn-sm btn-danger" id="cancel-session-btn">Cancel</button>
       <button class="btn btn-sm btn-primary finish-btn" id="finish-session-btn">Finish</button>
     </div>
@@ -25552,7 +25566,7 @@ async function renderSession(){
           const done=ex.sets.every(s=>s.completed);
           const partial=ex.sets.some(s=>s.completed);
           return `<button class="session-ex-tab ${ei===_activeExIdx?'active':''} ${done?'has-completed':partial?'has-partial':''}" data-action="switch-tab" data-idx="${ei}">
-            <span>${ex.exerciseName}</span>
+            <span>${escHtml(ex.exerciseName)}</span>
             ${done?`<span class="tab-dot" style="display:block;background:var(--success)"></span>`:partial?`<span class="tab-dot" style="display:block;background:var(--warning)"></span>`:''}
           </button>`;
         }).join('')}
@@ -25561,19 +25575,19 @@ async function renderSession(){
       ${activeEx?`<div class="session-ex-view">
         <div class="session-media">
           ${exInfo&&exInfo.images&&exInfo.images.length>0?`<div style="display:flex;gap:8px;justify-content:center">
-            ${exInfo.images.map(img=>`<img src="${img}" alt="${activeEx.exerciseName}" loading="lazy" onerror="this.style.display='none'"/>`).join('')}
-          </div>`:exInfo&&exInfo.imageUrl?`<img src="${exInfo.imageUrl}" alt="${activeEx.exerciseName}" loading="lazy" onerror="this.style.display='none'"/>`:
+            ${exInfo.images.map(img=>`<img src="${img}" alt="${escHtml(activeEx.exerciseName)}" loading="lazy" onerror="this.style.display='none'"/>`).join('')}
+          </div>`:exInfo&&exInfo.imageUrl?`<img src="${exInfo.imageUrl}" alt="${escHtml(activeEx.exerciseName)}" loading="lazy" onerror="this.style.display='none'"/>`:
           `<div class="exercise-svg-container" style="margin:0">${SVGAnimations.get(exInfo?.animationId,exInfo?.muscleGroup)}</div>`}
-          <div class="ex-desc">${exInfo?.description||''}</div>
-          ${exInfo?.tips?.length?`<ul class="ex-tips">${exInfo.tips.map(t=>`<li>${t}</li>`).join('')}</ul>`:''}
+          <div class="ex-desc">${escHtml(exInfo?.description)||''}</div>
+          ${exInfo?.tips?.length?`<ul class="ex-tips">${exInfo.tips.map(t=>`<li>${escHtml(t)}</li>`).join('')}</ul>`:''}
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
-            <span class="chip" style="font-size:11px;padding:3px 8px;background:${muscleColor(exInfo?.muscleGroup||'Full Body')};color:#fff;border:none">${exInfo?.muscleGroup||''}</span>
-            ${(exInfo?.secondaryMuscles||[]).map(m=>`<span class="chip" style="font-size:11px;padding:3px 8px">${m}</span>`).join('')}
+            <span class="chip" style="font-size:11px;padding:3px 8px;background:${muscleColor(exInfo?.muscleGroup||'Full Body')};color:#fff;border:none">${escHtml(exInfo?.muscleGroup)||''}</span>
+            ${(exInfo?.secondaryMuscles||[]).map(m=>`<span class="chip" style="font-size:11px;padding:3px 8px">${escHtml(m)}</span>`).join('')}
           </div>
         </div>
         <div class="session-sets-panel">
           <div class="flex items-center" style="justify-content:space-between;margin-bottom:12px">
-            <h3 style="font-size:16px;font-weight:700">${activeEx.exerciseName}</h3>
+            <h3 style="font-size:16px;font-weight:700">${escHtml(activeEx.exerciseName)}</h3>
             <button class="btn btn-ghost btn-sm" data-action="remove-ex" data-idx="${_activeExIdx}" style="color:var(--danger);padding:4px">${icons.trash}</button>
           </div>
           <table class="set-table">
@@ -25613,11 +25627,13 @@ async function renderSession(){
 }
 
 async function loadPreviousData(data,unit){
+  const allSessions=await DB.getAll('sessions');
   for(let ei=0;ei<data.exercises.length;ei++){
-    const prev=await Session._getPrevious(data.exercises[ei].exerciseId);
+    const prevData=Session._getPreviousFrom(data.exercises[ei].exerciseId,allSessions);
+    const prev=prevData.sets;
     const rows=$$(`tr[data-ei="${ei}"] .prev-col`);
     rows.forEach((td,si)=>{
-      if(prev[si]){td.textContent=`${prev[si].weight}x${prev[si].reps}`}
+      if(prev[si]){td.textContent=`${fmt.weight(cvtWt(prev[si].weight,prevData.weightUnit))}x${prev[si].reps}`}
     });
   }
 }
@@ -25758,9 +25774,9 @@ async function viewHistory(param){
     ${sorted.length?sorted.map(s=>`
       <div class="history-item" onclick="Router.navigate('history/${s.id}')">
         <div style="flex:1">
-          <strong>${s.name||'Workout'}</strong>
+          <strong>${escHtml(s.name)||'Workout'}</strong>
           <div class="history-date">${fmt.dateFull(s.completedAt)}</div>
-          <div style="font-size:13px;color:var(--text-secondary)">${s.totalSets} sets &middot; ${fmt.volume(s.totalVolume,unit)} ${unit} &middot; ${fmt.duration(s.duration)}</div>
+          <div style="font-size:13px;color:var(--text-secondary)">${s.totalSets} sets &middot; ${fmt.volume(cvtWt(s.totalVolume,s.weightUnit))} ${unit} &middot; ${fmt.duration(s.duration)}</div>
         </div>
         <span style="color:var(--text-muted)">${icons.chevronRight}</span>
       </div>
@@ -25777,7 +25793,7 @@ async function viewHistoryDetail(id){
   renderApp(`
     <div class="app-header">
       <button class="back-btn" onclick="Router.navigate('history')">${icons.chevronLeft}</button>
-      <h1>${session.name||'Workout'}</h1>
+      <h1>${escHtml(session.name)||'Workout'}</h1>
     </div>
     <div class="card">
       <div class="flex items-center gap-8" style="margin-bottom:8px">
@@ -25785,7 +25801,7 @@ async function viewHistoryDetail(id){
       </div>
       <div class="stats-grid" style="padding:0">
         <div class="stat-card"><div class="stat-value">${fmt.duration(session.duration)}</div><div class="stat-label">Duration</div></div>
-        <div class="stat-card"><div class="stat-value">${fmt.volume(session.totalVolume,unit)}</div><div class="stat-label">Volume (${unit})</div></div>
+        <div class="stat-card"><div class="stat-value">${fmt.volume(cvtWt(session.totalVolume,session.weightUnit))}</div><div class="stat-label">Volume (${unit})</div></div>
         <div class="stat-card"><div class="stat-value">${session.totalSets}</div><div class="stat-label">Sets</div></div>
         <div class="stat-card"><div class="stat-value">${session.totalReps}</div><div class="stat-label">Reps</div></div>
       </div>
@@ -25795,12 +25811,12 @@ async function viewHistoryDetail(id){
       const color=exInfo?muscleColor(exInfo.muscleGroup):'var(--accent)';
       return `<div class="card">
         <div class="flex items-center gap-8 mb-8">
-          <div class="exercise-icon" style="background:${color};width:32px;height:32px;font-size:14px">${(ex.exerciseName||'E')[0]}</div>
-          <strong>${ex.exerciseName}</strong>
+          <div class="exercise-icon" style="background:${color};width:32px;height:32px;font-size:14px">${escHtml((ex.exerciseName||'E')[0])}</div>
+          <strong>${escHtml(ex.exerciseName)}</strong>
         </div>
         <table class="set-table">
           <thead><tr><th>SET</th><th>${unit.toUpperCase()}</th><th>REPS</th></tr></thead>
-          <tbody>${ex.sets.map(s=>`<tr><td class="set-num">${s.setNumber}</td><td class="mono">${s.weight}</td><td class="mono">${s.reps}</td></tr>`).join('')}</tbody>
+          <tbody>${ex.sets.map(s=>`<tr><td class="set-num">${s.setNumber}</td><td class="mono">${fmt.weight(cvtWt(s.weight,session.weightUnit))}</td><td class="mono">${s.reps}</td></tr>`).join('')}</tbody>
         </table>
       </div>`;
     }))).join('')}
@@ -25814,12 +25830,15 @@ async function viewHistoryDetail(id){
 async function repeatWorkout(sessionId){
   const session=await DB.get('sessions',sessionId);
   if(!session)return;
+  const allSessions=await DB.getAll('sessions');
   const exercises=[];
   for(const e of session.exercises){
-    const prev=await Session._getPrevious(e.exerciseId);
+    const prevData=Session._getPreviousFrom(e.exerciseId,allSessions);
+    const prev=prevData.sets;
     const sets=[];
     for(let i=0;i<e.sets.length;i++){
-      sets.push({setNumber:i+1,weight:prev[i]?.weight||e.sets[i]?.weight||0,reps:prev[i]?.reps||e.sets[i]?.reps||0,type:'normal',rpe:null,completed:false,completedAt:null});
+      const w=prev[i]?Math.round(cvtWt(prev[i].weight,prevData.weightUnit)):e.sets[i]?Math.round(cvtWt(e.sets[i].weight,session.weightUnit)):0;
+      sets.push({setNumber:i+1,weight:w,reps:prev[i]?.reps||e.sets[i]?.reps||0,type:'normal',rpe:null,completed:false,completedAt:null});
     }
     exercises.push({exerciseId:e.exerciseId,exerciseName:e.exerciseName,restSeconds:90,sets,expanded:false});
   }
@@ -26047,6 +26066,7 @@ init();
 
 
 </script>
+
 
 
 
